@@ -108,6 +108,28 @@ public class CaptainTest {
         p = GovMath.parseRun("until arrived 5d", 60f);
         check(near((Float) p[0], 5f), "run until arrived 5d");
         batches();
+        chase();
+    }
+
+    static void chase() {
+        String d = ChaseMath.decide(300f, 800f, true, false, true, false, true, false, false, false);
+        check(ChaseMath.PULSE.equals(d), "pulse inside range: " + d);
+        d = ChaseMath.decide(300f, 800f, true, false, true, true, true, false, false, false);
+        check(ChaseMath.SB_OFF.equals(d), "sustained burn off first so the pulse can fire: " + d);
+        d = ChaseMath.decide(300f, 800f, true, true, true, false, true, false, false, false);
+        check(ChaseMath.NONE.equals(d), "pulse charging: wait");
+        d = ChaseMath.decide(500f, 800f, false, false, true, false, true, false, false, false);
+        check(ChaseMath.EB.equals(d), "pulse on cooldown, not closing, close: emergency burn: " + d);
+        d = ChaseMath.decide(500f, 800f, false, false, true, false, true, false, false, true);
+        check(ChaseMath.NONE.equals(d), "emergency burn only once per chase: " + d);
+        d = ChaseMath.decide(3000f, 800f, false, false, true, false, true, false, false, false);
+        check(ChaseMath.SB_ON.equals(d), "far and not closing: sustained burn: " + d);
+        d = ChaseMath.decide(3000f, 800f, false, false, true, false, true, false, true, false);
+        check(ChaseMath.NONE.equals(d), "closing anyway: leave it: " + d);
+        check(near(SupplyMath.fuelLy(25f, 67f, 40f, 10f), 10f), "expensive fuel: only 10 ly");
+        check(near(SupplyMath.fuelLy(25f, 26f, 40f, 10f), 25f), "cheap fuel: full 25 ly");
+        check(near(SupplyMath.fuelBudget(24000f, 5000f, 25f), 6000f), "fuel budget capped at 25% of credits");
+        check(near(SupplyMath.fuelBudget(6000f, 5000f, 25f), 1000f), "fuel budget keeps the reserve");
     }
 
     static java.util.List<String> L(String... a) { return java.util.Arrays.asList(a); }

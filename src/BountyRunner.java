@@ -70,6 +70,12 @@ public class BountyRunner implements EveryFrameScript {
     // 1.0.3: in-system movement on the way out counts as progress (light-years can't shrink before the jump)
     private com.fs.starfarer.api.campaign.LocationAPI moveLoc;
     private float moveX, moveY;
+    // 1.0.4: chasing a fleet that runs
+    private float chaseDist = -1f;
+    private long chaseTs = 0L;
+    private boolean chaseClosing = true, ebUsed = false;
+    private String lastChase = "";
+    private Target chaseTarget;
 
     public static void install() {
         instance = new BountyRunner();
@@ -290,6 +296,10 @@ public class BountyRunner implements EveryFrameScript {
     }
 
     private void setPhase(Phase p, String why) {
+        if (p == Phase.TRAVEL) {
+            chaseDist = -1f; chaseTs = 0L; chaseClosing = true; lastChase = "";
+            if (target != chaseTarget) { ebUsed = false; chaseTarget = target; }
+        }
         phase = p;
         state = p.name().toLowerCase();
         note = why;
@@ -416,9 +426,14 @@ public class BountyRunner implements EveryFrameScript {
             moveLoc = pf().getContainingLocation(); moveX = pf().getLocation().x; moveY = pf().getLocation().y;
             if (movedOut || bestDistTs != 0L) bestDistTs = nowTs;
         }
+        boolean sameLoc = pf().getContainingLocation() == target.fleet.getContainingLocation();
+        float suDist = sameLoc ? Misc.getDistance(pf(), target.fleet) : Float.MAX_VALUE;
+        if (sameLoc) chase(suDist, nowTs);
+        // a fleet that runs is chased longer than the plain 2-day watchdog (rule hunt_chase_days)
+        float limit = sameLoc && suDist < 4000f ? Rules.f("hunt_chase_days", 8f) : 2f;
         if (distLY < bestDistLY - 0.02f || bestDistTs == 0L) { bestDistLY = distLY; bestDistTs = nowTs; }
-        else if (sector().getClock().getElapsedDaysSince(bestDistTs) > 2f) {
-            pause("no progress toward " + target.name + " for 2 days (" + String.format(java.util.Locale.ROOT, "%.1f", Misc.getDistanceToPlayerLY(target.fleet)) + " ly / " + Math.round(Misc.getDistance(pf(), target.fleet)) + " su away)");
+        else if (sector().getClock().getElapsedDaysSince(bestDistTs) > limit) {
+            pause("no progress toward " + target.name + " for " + Math.round(limit) + " days (" + String.format(java.util.Locale.ROOT, "%.1f", Misc.getDistanceToPlayerLY(target.fleet)) + " ly / " + Math.round(Misc.getDistance(pf(), target.fleet)) + " su away)");
             return;
         }
         // the autopilot won't route through hyperspace to a fleet in another system: head for its star system first
@@ -633,5 +648,35 @@ public class BountyRunner implements EveryFrameScript {
             startSub(new Goals.Visit(s), back, "detour: " + s.name + " [" + s.kind + "], " + Math.round(s.dist) + " su, defended " + s.defended);
             return true;
         } catch (Throwable t) { log.warn("Claude Captain: explore check failed", t); return false; }
+    }
+
+    /** 1.0.4: abilities for closing on a target in this system (see ChaseMath). */
+    private void chase(float dist, long nowTs) {
+        try {
+            CampaignFleetAPI pf = pf();
+            if (chaseTs == 0L || sector().getClock().getElapsedDaysSince(chaseTs) >= 0.25f) {
+                chaseClosing = chaseDist < 0f || dist < chaseDist - 30f;
+                chaseDist = dist;
+                chaseTs = nowTs;
+            }
+            com.fs.starfarer.api.characters.AbilityPlugin ip = pf.getAbility("interdiction_pulse");
+            com.fs.starfarer.api.characters.AbilityPlugin sb = pf.getAbility("sustained_burn");
+            com.fs.starfarer.api.characters.AbilityPlugin eb = pf.getAbility("emergency_burn");
+            float range = com.fs.starfarer.api.impl.campaign.abilities.InterdictionPulseAbility.getRange(pf);
+            String act = ChaseMath.decide(dist, range,
+                    ip != null && ip.isUsable(), ip != null && ip.isActive(),
+                    sb != null && sb.isUsable(), sb != null && sb.isActive(),
+                    eb != null && eb.isUsable(), eb != null && eb.isActive(),
+                    chaseClosing, ebUsed);
+            if (ChaseMath.PULSE.equals(act)) ip.activate();
+            else if (ChaseMath.SB_ON.equals(act)) sb.activate();
+            else if (ChaseMath.SB_OFF.equals(act)) sb.deactivate();
+            else if (ChaseMath.EB.equals(act)) { eb.activate(); ebUsed = true; }
+            if (!ChaseMath.NONE.equals(act) && !act.equals(lastChase)) {
+                log("chase: " + act + " at " + Math.round(dist) + " su (pulse range " + Math.round(range) + ")");
+                EventLog.info("hunt", "chase " + target.name + ": " + act + " at " + Math.round(dist) + " su");
+            }
+            if (!ChaseMath.NONE.equals(act)) lastChase = act;
+        } catch (Throwable t) { log.warn("Claude Captain: chase step failed", t); }
     }
 }

@@ -54,6 +54,18 @@ public final class SupplyMath {
     }
 
     /** Fuel to carry for ly light years, minus what's aboard, capped by tank room. */
+    /** 1.0.4: light-years of fuel to top up to: the full target when fuel is cheap, only minLy above maxPrice per unit. */
+    public static float fuelLy(float wantLy, float unitPrice, float maxPrice, float minLy) {
+        if (maxPrice > 0f && unitPrice > maxPrice) return Math.min(wantLy, minLy);
+        return wantLy;
+    }
+
+    /** 1.0.4: credits fuel may use: keep the reserve, and never more than pct of credits on hand. */
+    public static float fuelBudget(float credits, float reserve, float pct) {
+        float cap = pct > 0f ? credits * pct / 100f : credits;
+        return Math.max(0f, Math.min(credits - reserve, cap));
+    }
+
     public static float fuel(float ly, float fuelPerLy, float have, float maxFuel) {
         float target = Math.min(maxFuel, ly * fuelPerLy);
         return Math.max(0f, (float) Math.ceil(target - have));

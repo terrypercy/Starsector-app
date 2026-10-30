@@ -362,9 +362,17 @@ public final class Goals {
             if (o.qty >= 1f) spent += topUp(m, mode, "supplies", o.qty, budget, b);
             float fpl = 1f;
             try { fpl = pf.getLogistics().getFuelCostPerLightYear(); } catch (Throwable ignored) {}
-            float fq = SupplyMath.fuel(Rules.f("resupply_fuel_ly", 25f), fpl, pf.getCargo().getFuel(), pf.getCargo().getMaxFuel());
+            // 1.0.4: fuel is price-aware and credit-capped like supplies (Athulf charged 67/unit: 13k for fuel)
+            boolean blackFuel = m.getSubmarket("black_market") != null && Trader.liveStock(m, true, "fuel") >= 1f;
+            float fuelUnit = Trader.buyCost(m, blackFuel, "fuel", 1f);
+            float fuelLy = SupplyMath.fuelLy(Rules.f("resupply_fuel_ly", 25f), fuelUnit,
+                    Rules.f("resupply_fuel_max_price", 40f), Rules.f("resupply_fuel_min_ly", 10f));
+            float fq = SupplyMath.fuel(fuelLy, fpl, pf.getCargo().getFuel(), pf.getCargo().getMaxFuel());
             float reserve = Rules.f("reserve_credits", 5000f);
-            if (fq >= 1f) spent += topUp(m, mode, "fuel", fq, Math.max(0f, pf.getCargo().getCredits().get() - reserve), b);
+            float fuelBudget = SupplyMath.fuelBudget(pf.getCargo().getCredits().get(), reserve, Rules.f("resupply_fuel_max_credit_pct", 25f));
+            if (fuelLy < Rules.f("resupply_fuel_ly", 25f)) b.append("\n  fuel costs ").append(Math.round(fuelUnit)).append("/unit here: topping up to ")
+                    .append(Math.round(fuelLy)).append(" ly only");
+            if (fq >= 1f) spent += topUp(m, mode, "fuel", fq, fuelBudget, b);
             Trader.endStop();
             b.append("\nspent ").append(Misc.getWithDGS(Math.round(spent))).append(" cr; now ").append(Math.round(pf.getCargo().getSupplies()))
              .append(" supplies (").append(Math.round(GovMath.supplyDays(pf.getCargo().getSupplies(), maint))).append(" days maintenance), fuel ")
