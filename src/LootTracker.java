@@ -79,7 +79,9 @@ public class LootTracker implements ShowLootListener {
         loot = null;
         dialog = null;
         d.getVisualPanel().closeCoreUI();
+        String fin = finishEncounter(d);
         String r = take ? "took: " + (took.length() > 0 ? took : "nothing") : "left the loot behind";
+        if (fin != null) r += "\n" + fin;
         if (left.length() > 0) r += "\nno room for: " + left;
         return r;
     }
@@ -129,7 +131,32 @@ public class LootTracker implements ShowLootListener {
         loot = null;
         dialog = null;
         d.getVisualPanel().closeCoreUI();
+        finishEncounter(d);
         return "took " + (took.length() > 0 ? took : "nothing") + " (base value ~" + Misc.getWithDGS(Math.round(value)) + " cr)"
                 + (left.length() > 0 ? "; no room for " + left : "");
+    }
+
+    /**
+     * 1.0.3: closing the post-battle loot screen from code skips the game's own "loot screen closed" step,
+     * which is what finishes the battle (bounty payout, XP, reputation) and closes the dialog. Without it the
+     * Avery Blanchard bounty (45,000) was never paid. Do that step the way the game does, once.
+     */
+    static String finishEncounter(InteractionDialogAPI d) {
+        try {
+            if (d == null || !(d.getPlugin() instanceof com.fs.starfarer.api.impl.campaign.FleetInteractionDialogPluginImpl)) return null;
+            if (Global.getSector().getPlayerFleet().getBattle() == null) return null; // the game already finished it
+            com.fs.starfarer.api.impl.campaign.FleetInteractionDialogPluginImpl p =
+                    (com.fs.starfarer.api.impl.campaign.FleetInteractionDialogPluginImpl) d.getPlugin();
+            Object c = p.getContext();
+            if (c instanceof com.fs.starfarer.api.impl.campaign.FleetEncounterContext) {
+                ((com.fs.starfarer.api.impl.campaign.FleetEncounterContext) c).applyAfterBattleEffectsIfThereWasABattle();
+            }
+            p.cleanUpBattle();
+            d.dismiss();
+            return "battle finished the game's way (bounty, XP and reputation are settled now)";
+        } catch (Throwable t) {
+            org.apache.log4j.Logger.getLogger(LootTracker.class).warn("Claude Captain: finishing the encounter failed", t);
+            return "WARNING: could not finish the battle after the loot screen: " + t;
+        }
     }
 }
