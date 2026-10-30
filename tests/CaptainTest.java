@@ -109,6 +109,18 @@ public class CaptainTest {
         check(near((Float) p[0], 5f), "run until arrived 5d");
         batches();
         chase();
+        routine();
+    }
+
+    static void routine() {
+        check(GovMath.routine("supplies:2", true, 0f, 0.4f), "supplies alarm on the way to a market: routine");
+        check(!GovMath.routine("supplies:4", false, 0f, 0.4f), "supplies gone with no market goal: pause");
+        check(GovMath.routine("fuel", true, 0f, 0.4f), "fuel alarm on the way to a market: routine");
+        check(GovMath.routine("incident:hull", false, 0.22f, 0.4f), "storm scrape 22%: routine");
+        check(!GovMath.routine("incident:hull", false, 0.6f, 0.4f), "big hull loss: pause");
+        check(!GovMath.routine("incident:lost", true, 0f, 0.4f), "ship lost: pause");
+        check(!GovMath.routine("threat:Pirates", true, 0f, 0.4f), "threat: pause");
+        check(!GovMath.routine("cr", true, 0f, 0.4f), "low CR: pause");
     }
 
     static void chase() {

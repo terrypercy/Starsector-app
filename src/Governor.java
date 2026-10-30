@@ -4,6 +4,7 @@ import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.CampaignFleetAPI;
 import com.fs.starfarer.api.campaign.InteractionDialogAPI;
 import com.fs.starfarer.api.campaign.SectorAPI;
+import com.fs.starfarer.api.campaign.SectorEntityToken;
 import com.fs.starfarer.api.campaign.econ.MarketAPI;
 import com.fs.starfarer.api.fleet.FleetMemberAPI;
 import com.fs.starfarer.api.util.Misc;
@@ -250,7 +251,15 @@ public final class Governor {
         last = in;
 
         List<GovMath.Alarm> fresh = latch.update(GovMath.check(in));
+        boolean toMarket = headingToMarket();
         for (GovMath.Alarm a : fresh) {
+            // 1.0.5: routine alarms (supplies/fuel while a goal already heads to a market, storm hull scrapes)
+            // are logged, not paused on: every pause cost a round trip with nothing to decide
+            if (armed && !Rules.b("gov_pause_routine", false)
+                    && GovMath.routine(a.key, toMarket, in.worstHullDropOutsideBattle, Rules.f("gov_incident_pause_pct", 40f) / 100f)) {
+                EventLog.warn("gov", a.text + " (routine: not paused" + (toMarket ? ", already heading to a market" : "") + ")");
+                continue;
+            }
             if (armed) {
                 budget.revoke();
                 pausedReason = a.text;
@@ -271,5 +280,20 @@ public final class Governor {
                 + String.format(java.util.Locale.ROOT, "%.1f", in.nearestFriendlyLy) + " ly"
                 + "\n  lowest combat CR " + Math.round(in.lowestCombatCR * 100f) + "% (" + in.lowestCRShip + ")" + (in.lowCrExpected ? " - low CR expected by the plan" : "")
                 + "\n  active alarms: " + latch.active() + ", acknowledged: " + latch.ackedKeys();
+    }
+
+    /** 1.0.5: the running goal (or trade trip) is on its way to a market, where supplies and fuel get fixed. */
+    static boolean headingToMarket() {
+        try {
+            Goals.Goal g = Captain.goal;
+            if (g == null || g.finished()) return TripRunner.busy();
+            if (g instanceof Goals.Resupply) return true;
+            if (g instanceof Goals.Travel) {
+                SectorEntityToken t = ((Goals.Travel) g).dest;
+                return t != null && t.getMarket() != null && !t.getMarket().isPlanetConditionMarketOnly();
+            }
+            if (g instanceof Goals.Runner) return !((Goals.Runner) g).hunt;
+        } catch (Throwable ignored) {}
+        return false;
     }
 }

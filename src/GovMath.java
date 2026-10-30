@@ -141,6 +141,18 @@ public final class GovMath {
     }
 
     /** Parses the arguments of 'run': "<days>", "<days>d", "until arrived|done|event [max <days>]". Returns {days, until} or throws. */
+    /**
+     * 1.0.5: alarms that don't need Claude: supply/fuel tiers while a goal already heads to a market (but not
+     * "supplies are gone" without one), and hull scrapes outside battle smaller than pausePct (hyperspace storms).
+     * Threats, low CR, ships lost and big hull losses always pause.
+     */
+    public static boolean routine(String key, boolean headingToMarket, float hullDrop, float pausePct) {
+        if (key == null) return false;
+        if (key.startsWith("supplies:") || key.equals("fuel")) return headingToMarket;
+        if (key.equals("incident:hull")) return hullDrop < pausePct;
+        return false;
+    }
+
     public static Object[] parseRun(String args, float untilMax) {
         String a = args == null ? "" : args.trim().toLowerCase(java.util.Locale.ROOT);
         if (a.startsWith("until")) {
