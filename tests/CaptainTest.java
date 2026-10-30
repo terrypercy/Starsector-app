@@ -103,6 +103,40 @@ public class CaptainTest {
         threw = false;
         try { GovMath.parseRun("until lunch", 60f); } catch (IllegalArgumentException e) { threw = true; }
         check(threw, "run until <unknown> is refused");
+        p = GovMath.parseRun("until done 3", 60f);
+        check(near((Float) p[0], 3f) && "done".equals(p[1]), "run until done 3 = max 3 (1.0.1 granted 60)");
+        p = GovMath.parseRun("until arrived 5d", 60f);
+        check(near((Float) p[0], 5f), "run until arrived 5d");
+        batches();
+    }
+
+    static java.util.List<String> L(String... a) { return java.util.Arrays.asList(a); }
+
+    static void batches() {
+        check(BatchMath.GOV.equals(BatchMath.kind("run 2", false)), "run 2 is a governor line");
+        check(BatchMath.GOAL.equals(BatchMath.kind("run trip 1", false)), "run trip 1 is a goal");
+        check(BatchMath.NOW.equals(BatchMath.kind("cancel", false)), "cancel acts at arrival");
+        check(BatchMath.GOAL.equals(BatchMath.kind("dock Tartessus", true)), "dock <place> is a goal");
+        check(BatchMath.INSTANT.equals(BatchMath.kind("dock", true)), "bare dock while docked is instant");
+        check(BatchMath.GOAL.equals(BatchMath.kind("dock", false)), "bare dock in space is a goal");
+        check(BatchMath.INSTANT.equals(BatchMath.kind("hunt stop", false)), "hunt stop is instant");
+        check(BatchMath.GOAL.equals(BatchMath.kind("hunt auto 3", false)), "hunt auto is a goal");
+        check(BatchMath.GOAL.equals(BatchMath.kind("optional resupply", false)), "optional prefix is ignored");
+        check(BatchMath.INSTANT.equals(BatchMath.kind("buy supplies 20", true)), "buy is instant");
+        check(BatchMath.INSTANT.equals(BatchMath.kind("repair instant", true)), "repair instant is not the dockyard goal");
+        // the 1.0.1 deadlock: goal paused, new batch = cancel + dock + instants
+        java.util.List<java.util.List<String>> s = BatchMath.split(L("cancel", "run 2", "dock Tartessus", "storage put crew 388", "status"), true, false);
+        check(s.get(0).equals(L("cancel", "run 2")), "cancel and run act at arrival: " + s.get(0));
+        check(s.get(1).equals(L("dock Tartessus", "storage put crew 388", "status")), "the rest queues in order: " + s.get(1));
+        check(!s.get(2).isEmpty(), "a batch with a goal replaces the unfinished goal");
+        // status while travelling: runs now, goal untouched
+        s = BatchMath.split(L("status", "events since 40"), true, false);
+        check(s.get(0).equals(L("status", "events since 40")) && s.get(1).isEmpty() && s.get(2).isEmpty(), "instant-only batch runs at once and keeps the goal");
+        // no goal running: everything queues as before
+        s = BatchMath.split(L("status", "buy supplies 5"), false, true);
+        check(s.get(0).isEmpty() && s.get(1).size() == 2 && s.get(2).isEmpty(), "idle: batch queues normally");
+        s = BatchMath.split(L("resume"), true, false);
+        check(s.get(0).equals(L("resume")) && s.get(2).isEmpty(), "resume acts at arrival without replacing");
     }
 
     // ------------------------------------------------------------------ supplies

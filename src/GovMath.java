@@ -152,6 +152,11 @@ public final class GovMath {
             else throw new IllegalArgumentException("run until arrived | done | event");
             float max = untilMax;
             for (int i = 2; i + 1 < p.length; i++) if (p[i].equals("max")) max = Float.parseFloat(p[i + 1].replace("d", ""));
+            // 1.0.2: 'run until done 3' means max 3 days (1.0.1 ignored the bare number and granted the 60-day default)
+            if (p.length == 3) {
+                try { max = Float.parseFloat(p[2].replace("days", "").replace("day", "").replace("d", "")); }
+                catch (NumberFormatException e) { throw new IllegalArgumentException("usage: run until arrived|done|event [max <days>]"); }
+            }
             return new Object[]{max, w};
         }
         String n = a.replace("days", "").replace("day", "").replace("d", "").trim();

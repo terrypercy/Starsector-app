@@ -143,7 +143,8 @@ public final class Goals {
         float progressDist = Float.MAX_VALUE, bestLy = Float.MAX_VALUE;
         long bestLyTs = 0L;
         int stalls = 0, jumpsDone = 0, jumpsEst = 0, relays = 0, courseChanges = 0;
-        LocationAPI lastLoc;
+        LocationAPI lastLoc, progressLoc;
+        float progressX, progressY;
         boolean started = false;
 
         public Travel(SectorEntityToken dest, boolean dock, float within) {
@@ -173,6 +174,8 @@ public final class Goals {
             startTs = sector().getClock().getTimestamp();
             progressTs = startTs;
             lastLoc = pf().getContainingLocation();
+            progressLoc = lastLoc;
+            progressX = pf().getLocation().x; progressY = pf().getLocation().y;
             jumpsEst = jumpsBetween(lastLoc, dest.getContainingLocation());
             try {
                 com.fs.starfarer.api.characters.AbilityPlugin burn = pf().getAbility("sustained_burn");
@@ -231,13 +234,19 @@ public final class Goals {
             long ts = sector().getClock().getTimestamp();
             if (ly < bestLy - 0.05f || bestLyTs == 0L) { bestLy = ly; bestLyTs = ts; }
             if (sector().getClock().getElapsedDaysSince(progressTs) >= 2f) {
-                boolean stuck = same ? dist > progressDist - 200f : sector().getClock().getElapsedDaysSince(bestLyTs) > 2f;
+                // 1.0.2: inside a star system on the way out, the light-year distance can't shrink until the
+                // jump, so moving 200+ su in-system towards the jump point counts as progress too
+                boolean movedInSystem = !same && !pf.isInHyperspace() && pf.getContainingLocation() == progressLoc
+                        && Misc.getDistance(pf.getLocation(), new org.lwjgl.util.vector.Vector2f(progressX, progressY)) > 200f;
+                boolean stuck = same ? dist > progressDist - 200f : sector().getClock().getElapsedDaysSince(bestLyTs) > 2f && !movedInSystem;
                 if (stuck) {
-                    if (++stalls >= 2) { pause("no progress towards " + dest.getName() + " for 4 days"); return; }
+                    if (++stalls >= 2) { pause("no progress towards " + dest.getName() + " for 4 days (at " + pf.getContainingLocation().getName() + ")"); return; }
                     sector().layInCourseFor(steer());
                 } else stalls = 0;
                 progressDist = same ? dist : Float.MAX_VALUE;
                 progressTs = ts;
+                progressLoc = pf.getContainingLocation();
+                progressX = pf.getLocation().x; progressY = pf.getLocation().y;
             }
             SectorEntityToken course = sector().getCampaignUI().getUltimateCourseTarget();
             if (course == null) sector().layInCourseFor(steer());

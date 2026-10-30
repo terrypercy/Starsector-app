@@ -152,18 +152,31 @@ public class Captain implements EveryFrameScript {
         continueOnError = false;
         batchHasRun = false;
         // governor lines (run/pause/control) take effect when the batch arrives, wherever they stand:
-        // a batch waits for each goal, so a 'run' after a goal would otherwise never be reached
-        List<String> hoisted = new ArrayList<String>();
-        for (String l : lines) {
-            String low = l.toLowerCase(Locale.ROOT).trim();
-            boolean gov = (low.startsWith("run ") && !low.startsWith("run trip")) || low.equals("pause") || low.startsWith("control ") || low.equals("unpause");
-            if (gov) { hoisted.add(l); if (!low.equals("pause")) batchHasRun = true; }
+        // a batch waits for each goal, so a 'run' after a goal would otherwise never be reached.
+        // 1.0.2: 'cancel'/'resume' also act at arrival; a batch that starts a goal replaces an unfinished
+        // (running or paused) goal; a batch without goals runs at once while a goal is unfinished.
+        boolean unfinished = goal != null && !goal.finished();
+        boolean docked = false;
+        try { docked = Goals.dockedMarket() != null; } catch (Throwable ignored) {}
+        List<List<String>> parts = BatchMath.split(lines, unfinished, docked);
+        List<String> gov = new ArrayList<String>(), other = new ArrayList<String>();
+        for (String l : parts.get(0)) {
+            if (BatchMath.GOV.equals(BatchMath.kind(l, docked))) {
+                gov.add(l);
+                if (!l.trim().equalsIgnoreCase("pause")) batchHasRun = true;
+            } else other.add(l);
         }
-        lines = new ArrayList<String>(lines);
-        lines.removeAll(hoisted);
-        EventLog.add(EventCore.CMD, "batch", "batch " + batchId + ": " + (lines.size() + hoisted.size()) + " command(s)" + (hoisted.isEmpty() ? "" : ", governor first: " + hoisted));
-        for (String h : hoisted) runLine(h);
-        queue.addAll(lines);
+        EventLog.add(EventCore.CMD, "batch", "batch " + batchId + ": " + lines.size() + " command(s)"
+                + (gov.isEmpty() ? "" : ", governor first: " + gov)
+                + (other.isEmpty() ? "" : ", at once: " + other));
+        if (!parts.get(2).isEmpty() && goal != null && !goal.finished()) {
+            String old = goal.title, st = goal.state;
+            goal.cancel();
+            EventLog.info("goal", "replaced (" + st + "): " + old + " - batch " + batchId + " starts a new goal");
+        }
+        for (String h : gov) runLine(h);
+        for (String h : other) runLine(h);
+        queue.addAll(parts.get(1));
     }
 
     // ------------------------------------------------------------------ running
