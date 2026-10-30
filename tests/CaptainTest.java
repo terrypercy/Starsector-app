@@ -1,0 +1,324 @@
+import claudecaptain.*;
+
+import java.util.*;
+
+/** Unit tests for Claude Captain's pure logic: governor, supply sizing, dialog rules, events, reputation, exploration, panel rows, JSON. */
+public class CaptainTest {
+    static int passes = 0, fails = 0;
+    static void check(boolean c, String m) { if (c) passes++; else { fails++; System.out.println("FAIL: " + m); } }
+    static boolean near(float a, float b) { return Math.abs(a - b) < 0.01f; }
+
+    public static void main(String[] args) {
+        governor();
+        supplies();
+        dialogRules();
+        events();
+        reputation();
+        explore();
+        hud();
+        json();
+        System.out.println("CaptainTest: " + passes + " passed, " + fails + " failed");
+        if (fails > 0) System.exit(1);
+    }
+
+    // ------------------------------------------------------------------ governor
+
+    static GovMath.Input base() {
+        GovMath.Input in = new GovMath.Input();
+        in.supplies = 300f; in.maintPerDay = 5f;           // 60 days
+        in.fuel = 500f; in.fuelPerLy = 5f; in.nearestFriendlyLy = 10f; in.nearestFriendlyName = "Jangala";
+        in.lowestCombatCR = 0.7f; in.lowestCRShip = "ISS Test";
+        in.ourDP = 60f;
+        return in;
+    }
+
+    static boolean has(List<GovMath.Alarm> l, String prefix) { for (GovMath.Alarm a : l) if (a.key.startsWith(prefix)) return true; return false; }
+
+    static void governor() {
+        check(near(GovMath.supplyDays(150f, 10f), 15f), "supply days = supplies / maintenance");
+        check(GovMath.supplyDays(10f, 0f) > 1000f, "no burn = no supply limit");
+        check(GovMath.supplyTier(20f, 15f) == 0 && GovMath.supplyTier(14f, 15f) == 1 && GovMath.supplyTier(7f, 15f) == 2
+                && GovMath.supplyTier(3f, 15f) == 3 && GovMath.supplyTier(0f, 15f) == 4, "supply tiers 0-4");
+        check(near(GovMath.fuelNeeded(10f, 5f, 25f, 2f), (12.5f + 2f) * 5f), "fuel needed = (ly*(1+margin)+ly margin)*fuel/ly");
+        check(GovMath.fuelNeeded(-1f, 5f, 25f, 2f) == 0f, "unknown market distance: no fuel alarm");
+
+        check(GovMath.check(base()).isEmpty(), "healthy fleet: no alarms");
+        GovMath.Input in = base(); in.supplies = 70f; // 14 days
+        check(has(GovMath.check(in), "supplies:1"), "14 days of maintenance < 15: supply alarm");
+        in = base(); in.fuel = 60f;
+        check(has(GovMath.check(in), "fuel"), "fuel short of the nearest friendly market + margin: alarm");
+        in.docked = true;
+        check(!has(GovMath.check(in), "fuel"), "docked: no fuel alarm");
+        in = base(); in.lowestCombatCR = 0.35f;
+        check(has(GovMath.check(in), "cr"), "CR 35% < 40%: alarm");
+        in.lowCrExpected = true;
+        check(!has(GovMath.check(in), "cr"), "resting by plan: low CR expected, no alarm");
+        in = base(); in.threatDP = 90f; in.threatName = "Raiders"; in.threatClosing = true;
+        check(has(GovMath.check(in), "threat"), "stronger hostile closing: alarm");
+        in.threatClosing = false;
+        check(!has(GovMath.check(in), "threat"), "stronger hostile not closing: no alarm");
+        in = base(); in.threatDP = 40f; in.threatClosing = true;
+        check(!has(GovMath.check(in), "threat"), "weaker hostile closing: no alarm");
+        in = base(); in.worstHullDropOutsideBattle = 0.1f; in.incidentShip = "ISS X";
+        check(has(GovMath.check(in), "incident:hull"), "hull loss outside battle: incident alarm");
+        in = base(); in.shipsLostOutsideBattle = 1;
+        check(has(GovMath.check(in), "incident:lost"), "ship gone outside battle: incident alarm");
+
+        // latch: fire once, ack silences, escalation re-fires, clearing forgets
+        GovMath.Latch l = new GovMath.Latch();
+        in = base(); in.supplies = 70f;
+        check(l.update(GovMath.check(in)).size() == 1, "latch: first time fires");
+        check(l.update(GovMath.check(in)).isEmpty(), "latch: same alarm does not fire twice");
+        l.ack();
+        check(l.update(GovMath.check(in)).isEmpty(), "latch: acknowledged alarm stays quiet");
+        in.supplies = 30f; // 6 days -> tier 2
+        check(l.update(GovMath.check(in)).size() == 1, "latch: worse supply tier fires again");
+        in = base();
+        check(l.update(GovMath.check(in)).isEmpty(), "latch: cleared");
+        in.supplies = 70f;
+        check(l.update(GovMath.check(in)).size() == 1, "latch: comes back after clearing -> fires");
+        GovMath.Input inc = base(); inc.worstHullDropOutsideBattle = 0.05f;
+        check(l.update(GovMath.check(inc)).size() >= 1 && has(l.update(GovMath.check(inc)), "incident"), "latch: every incident is news");
+
+        // budget
+        GovMath.Budget b = new GovMath.Budget();
+        check(!b.active(), "budget starts empty");
+        b.grant(3f, null);
+        check(b.active() && !b.consume(1f) && near(b.daysLeft, 2f), "budget consumes days");
+        check(b.consume(2.5f) && !b.active() && b.daysLeft == 0f, "budget reports the moment it runs out");
+        check(!b.consume(1f), "an empty budget doesn't report twice");
+        b.grant(5f, "arrived");
+        check(b.describe().contains("until arrived"), "budget describes its condition");
+        Object[] p = GovMath.parseRun("3", 60f);
+        check(near((Float) p[0], 3f) && p[1] == null, "run 3");
+        p = GovMath.parseRun("2.5d", 60f);
+        check(near((Float) p[0], 2.5f), "run 2.5d");
+        p = GovMath.parseRun("until arrived", 60f);
+        check(near((Float) p[0], 60f) && "arrived".equals(p[1]), "run until arrived (capped by gov_until_max_days)");
+        p = GovMath.parseRun("until event max 10", 60f);
+        check(near((Float) p[0], 10f) && "event".equals(p[1]), "run until event max 10");
+        boolean threw = false;
+        try { GovMath.parseRun("forever", 60f); } catch (IllegalArgumentException e) { threw = true; }
+        check(threw, "run with nonsense is refused");
+        threw = false;
+        try { GovMath.parseRun("until lunch", 60f); } catch (IllegalArgumentException e) { threw = true; }
+        check(threw, "run until <unknown> is refused");
+    }
+
+    // ------------------------------------------------------------------ supplies
+
+    static void supplies() {
+        // the live-play mistake: 629 supplies for 85k. Fleet maintenance 4/day, current burn 11/day while recovering CR.
+        SupplyMath.Order o = SupplyMath.supplies(4f, 60f, 60f, 40f, 135f, 340000f, 25f, 1000f, -1f);
+        check(near(o.want, 4f * 60f + 60f - 40f), "order = maintenance x days + CR budget - aboard (" + o.want + ")");
+        check(o.qty < 629f && o.qty == o.want, "sized from maintenance, not from the inflated burn: " + o);
+        o = SupplyMath.supplies(4f, 60f, 0f, 0f, 135f, 40000f, 25f, 1000f, -1f);
+        check(o.cost <= 40000f * 0.25f + 0.5f && o.limitedBy.startsWith("credits"), "capped at 25% of credits: " + o);
+        o = SupplyMath.supplies(4f, 60f, 0f, 0f, 10f, 1e6f, 25f, 100f, -1f);
+        check(o.qty == 100f && o.limitedBy.equals("cargo room"), "capped by cargo room");
+        o = SupplyMath.supplies(4f, 60f, 0f, 0f, 10f, 1e6f, 25f, 1000f, 50f);
+        check(o.qty == 50f && o.limitedBy.equals("stock"), "capped by market stock");
+        o = SupplyMath.supplies(4f, 60f, 0f, 500f, 10f, 1e6f, 25f, 1000f, -1f);
+        check(o.qty == 0f, "enough aboard: buy nothing");
+        check(near(SupplyMath.crRecovery(0.4f, 0.7f, 10f, 0.15f), 20f), "CR recovery: 2 deployments' worth = 2 x deployment supplies");
+        check(SupplyMath.crRecovery(0.8f, 0.7f, 10f, 0.15f) == 0f, "no CR recovery above max");
+        check(SupplyMath.fuel(25f, 4f, 30f, 500f) == 70f, "fuel for 25 ly minus aboard");
+        check(SupplyMath.fuel(25f, 4f, 30f, 60f) == 30f, "fuel capped by the tank");
+    }
+
+    // ------------------------------------------------------------------ dialog rules
+
+    static List<DialogRules.Opt> opts(String... t) {
+        List<DialogRules.Opt> l = new ArrayList<DialogRules.Opt>();
+        for (String s : t) {
+            boolean dis = s.startsWith("-"), conf = s.startsWith("*");
+            l.add(new DialogRules.Opt(dis || conf ? s.substring(1) : s, !dis, conf));
+        }
+        return l;
+    }
+
+    static String sig(String type, String extra, List<DialogRules.Opt> o) {
+        return "type=" + type + " target=X faction=f hostile=no useful=no scan=no illegal=no bounty=no stronger=no salvage=no loot=no target_goal=no "
+                .replace(extra.split("=")[0] + "=" + (extra.endsWith("yes") ? "no" : "yes"), extra) + DialogRules.optsField(o) + " text=";
+    }
+
+    static String chosen(DialogRules r, List<String> ctx, String sig, List<DialogRules.Opt> o) {
+        DialogRules.Decision d = r.decide(ctx, sig, o, sig.contains("loot=yes"));
+        if (d == null) return null;
+        if (!d.action.equals("choose")) return d.action;
+        return o.get(d.option).text;
+    }
+
+    static void dialogRules() {
+        DialogRules r = DialogRules.parse(DialogRules.DEFAULTS);
+        check(r.errors.isEmpty(), "default dialog rules parse cleanly " + r.errors);
+        check(r.rules.size() >= 15, "defaults cover the routine dialogs (" + r.rules.size() + " rules)");
+        List<String> travel = Arrays.asList("travel");
+        List<String> hunt = Arrays.asList("hunt", "travel");
+
+        List<DialogRules.Opt> jump = opts("Order a jump to Askonia", "Leave");
+        check("Order a jump to Askonia".equals(chosen(r, travel, sig("jump", "useful=yes", jump), jump)), "useful jump point: jump");
+        check("Leave".equals(chosen(r, travel, sig("jump", "useful=no", jump), jump)), "jump point off the route: leave");
+        List<DialogRules.Opt> tj = opts("Turn the transponder on and then jump", "Order a jump", "Leave");
+        check("Turn the transponder on and then jump".equals(chosen(r, travel, sig("jump", "useful=yes", tj), tj)), "prefers transponder-on jump");
+
+        List<DialogRules.Opt> scan = opts("Allow the scan", "Refuse");
+        String s = sig("fleet", "scan=yes", scan);
+        check("Allow the scan".equals(chosen(r, travel, s, scan)), "legal hold: comply with the scan");
+        check("pause".equals(chosen(r, travel, s.replace("illegal=no", "illegal=yes"), scan)), "contraband aboard: pause");
+
+        List<DialogRules.Opt> enc = opts("Open a comm link", "Move in to engage", "Attempt to disengage", "Leave");
+        String hostile = sig("fleet", "hostile=yes", enc);
+        check("Attempt to disengage".equals(chosen(r, travel, hostile, enc)), "travel: hostile blocks the way -> disengage");
+        check("Move in to engage".equals(chosen(r, Arrays.asList("hunt", "engage"), hostile.replace("bounty=no", "bounty=yes"), enc)), "hunt: bounty target -> engage");
+        check(chosen(r, Arrays.asList("hunt", "engage"), hostile.replace("bounty=no", "bounty=yes").replace("stronger=no", "stronger=yes"), enc) == null,
+                "hunt: stronger than planned -> no rule (pause)");
+        List<DialogRules.Opt> pursuit = opts("Take command of the action", "Order your second-in-command to handle it", "Let them go");
+        check("Take command of the action".equals(chosen(r, Arrays.asList("pursuit", "hunt"), sig("fleet", "hostile=yes", pursuit), pursuit)), "pursuit: take command");
+
+        List<DialogRules.Opt> after = opts("Consider ship recovery", "Pick through the wreckage", "Continue");
+        check("pause".equals(chosen(r, Arrays.asList("after_battle", "hunt"), sig("fleet", "hostile=yes", after), after)), "after battle with recovery: pause for Claude");
+        DialogRules.Decision noPause = r.decide(Arrays.asList("after_battle", "hunt"), sig("fleet", "hostile=yes", after), after, false, false);
+        check(noPause != null && after.get(noPause.option).text.equals("Pick through the wreckage"), "after 'resume' the recovery pause is skipped (no pause loop)");
+        List<DialogRules.Opt> after2 = opts("Pick through the wreckage", "Continue");
+        check("Pick through the wreckage".equals(chosen(r, Arrays.asList("after_battle"), sig("fleet", "hostile=yes", after2), after2)), "after battle: loot the wreckage");
+        check("loot".equals(chosen(r, travel, sig("other", "loot=yes", opts()), opts())), "loot screen: take loot");
+
+        List<DialogRules.Opt> cont = opts("Continue");
+        check("Continue".equals(chosen(r, travel, sig("other", "x=y", cont), cont)), "lone Continue: continue");
+        List<DialogRules.Opt> cut = opts("Cut the comm link");
+        check("Cut the comm link".equals(chosen(r, travel, sig("fleet", "hostile=yes", cut), cut)), "comm link: cut");
+        List<DialogRules.Opt> mkt = opts("Open the comm directory", "Trade goods", "Leave");
+        check("Leave".equals(chosen(r, travel, sig("market", "x=y", mkt), mkt)), "travel: someone else's market -> leave");
+        check(chosen(r, travel, sig("market", "target_goal=yes", mkt), mkt) == null, "travel: the goal's market is not left");
+        check(chosen(r, Arrays.asList("idle"), sig("market", "x=y", mkt), mkt) == null, "idle: never leaves a market by itself");
+
+        List<DialogRules.Opt> salv = opts("Perform a salvage operation", "Leave");
+        check("Perform a salvage operation".equals(chosen(r, Arrays.asList("explore"), sig("derelict", "salvage=yes", salv), salv)), "explore: salvage");
+        List<DialogRules.Opt> def = opts("Engage the automated defenses", "Leave");
+        check("Leave".equals(chosen(r, Arrays.asList("explore"), sig("salvage", "salvage=yes", def), def)), "explore: defended -> leave");
+        check(chosen(r, travel, sig("derelict", "salvage=yes", salv), salv) == null, "salvage is only touched in the explore context");
+
+        // safety: disabled and story-point/confirm options are never chosen
+        List<DialogRules.Opt> spOnly = opts("*Attempt to disengage", "-Leave");
+        check(chosen(r, travel, sig("fleet", "hostile=yes", spOnly), spOnly) == null, "never picks confirm/story-point or disabled options");
+
+        // custom rules: tags, live edits, errors
+        DialogRules c = DialogRules.parse("bar : match text=.*drink -> choose ^Buy a round\nbad line\n* : match ( -> choose x\n* : match x -> fly\n");
+        check(c.rules.size() == 1 && c.errors.size() == 3, "bad lines are reported, good ones kept: " + c.errors);
+        List<DialogRules.Opt> bar = opts("Buy a round", "Leave");
+        check(chosen(c, Arrays.asList("bar"), "type=market text=have a drink " + DialogRules.optsField(bar), bar).equals("Buy a round"), "custom context rule");
+        check(chosen(c, travel, "type=market text=have a drink", bar) == null, "rule tag must match the context");
+    }
+
+    // ------------------------------------------------------------------ events
+
+    static void events() {
+        EventCore e = new EventCore(60);
+        long a = e.add("206.08.23", EventCore.INFO, "cmd", "b1", "> status\nline two\nline three");
+        long b = e.add("206.08.23", EventCore.WARN, "gov", "b1", "supplies low");
+        check(a == 1 && b == 2 && e.lastSeq() == 2, "sequence numbers count up");
+        String since = e.since(1);
+        check(since.startsWith("#2 ") && !since.contains("#1 "), "since(1) has only #2");
+        check(e.since(0).contains("  | line two"), "continuation lines kept with their event");
+        check(e.text().contains("b=b1"), "batch id tagged");
+        for (int i = 0; i < 100; i++) e.add("d", EventCore.INFO, "x", null, "event " + i + "\nmore");
+        check(e.lineCount() <= 60, "trimmed to ~keep lines (" + e.lineCount() + ")");
+        check(EventCore.seqOf(e.text().split("\n")[0]) > 0, "trimming never leaves a half event at the top");
+        check(e.lastSeq() == 102, "seq keeps counting after trimming");
+        check(e.since(0).startsWith("#" + e.firstSeq() + " "), "since(0) starts at the oldest kept event");
+        EventCore f = new EventCore(2000);
+        f.load("  | orphan continuation\n" + e.text());
+        check(f.lastSeq() == 102 && f.add("d", EventCore.INFO, "x", null, "after restart") == 103, "numbering continues after a restart");
+        check(!f.text().startsWith("  |"), "a partial event at the top of the file is dropped");
+        check(e.lastHeads(2).size() == 2 && e.lastHeads(2).get(1).startsWith("#102 "), "last heads newest last");
+    }
+
+    // ------------------------------------------------------------------ reputation
+
+    static void reputation() {
+        check(RepMath.toFavorable(4f, 10f) == 6f && RepMath.toFavorable(15f, 10f) == 0f, "distance to Favorable");
+        check(RepMath.stipend(1, 20000f, 5000f) == 25000f && RepMath.stipend(10, 20000f, 5000f) == 70000f, "stipend = 20000 + 5000/level");
+        check(near(RepMath.progress(-10f, 10f), 0f) && near(RepMath.progress(0f, 10f), 0.5f) && near(RepMath.progress(12f, 10f), 1f), "progress bar fraction");
+        check(RepMath.bar(0.5f, 10).equals("[=====-----]"), "text bar");
+        RepMath.Faction heg = new RepMath.Faction("hegemony", "Hegemony", 4f); heg.hasBounties = true; heg.deficits = 3;
+        RepMath.Faction tt = new RepMath.Faction("tritachyon", "Tri-Tachyon", 8f); tt.hostile = true;
+        RepMath.Faction ind = new RepMath.Faction("independent", "Independent", 25f);
+        List<String> sg = RepMath.suggestions(heg, 10f);
+        check(sg.get(0).contains("bounties") && sg.get(sg.size() - 1).contains("6 points"), "suggestions: bounties first, gap last " + sg);
+        check(RepMath.suggestions(ind, 10f).get(0).contains("commission independent"), "enough standing: suggests the commission");
+        check(RepMath.pickTarget(Arrays.asList(heg, tt, ind), 10f, null) == heg, "panel target: closest non-hostile below Favorable");
+        check(RepMath.pickTarget(Arrays.asList(heg, tt, ind), 10f, "Tri-Tachyon") == tt, "panel target: rule override");
+    }
+
+    // ------------------------------------------------------------------ exploration
+
+    static void explore() {
+        check(near(ExploreMath.detour(0, 0, 0, 0, 100f, 0f), 0f), "site on the way: no detour");
+        check(near(ExploreMath.detour(0, 0, 50, 0, 100f, 0f), 0f), "site on the line: no detour");
+        check(near(ExploreMath.detour(0, 0, 300, 0, null, null), 600f), "no destination: there and back");
+        ExploreMath.Site near = new ExploreMath.Site("a", "Wreck", "derelict", 1000, 0); near.salvage = true;
+        ExploreMath.Site far = new ExploreMath.Site("b", "Far wreck", "derelict", 20000, 0); far.salvage = true;
+        ExploreMath.Site def = new ExploreMath.Site("c", "Guarded", "station", 500, 0); def.salvage = true; def.defended = "yes"; def.defenderDP = 80f;
+        ExploreMath.Site surv = new ExploreMath.Site("d", "Planet", "planet_unsurveyed", 200, 0); surv.survey = true;
+        ExploreMath.Site ruins = new ExploreMath.Site("e", "Ruins", "ruins", 100, 0); ruins.ruins = true;
+        List<ExploreMath.Site> all = Arrays.asList(near, far, def, surv, ruins);
+        Set<String> none = new HashSet<String>();
+        ExploreMath.Site p = ExploreMath.pick(all, 0, 0, null, null, 4000f, none, true, 60f, 1.5f, true);
+        check(p == near, "picks the undefended salvage within the detour limit (got " + (p == null ? null : p.name) + ")");
+        check(ExploreMath.pick(all, 0, 0, null, null, 4000f, new HashSet<String>(Arrays.asList("a")), true, 60f, 1.5f, true) == surv, "then the survey");
+        check(ExploreMath.pick(all, 0, 0, null, null, 4000f, new HashSet<String>(Arrays.asList("a", "d")), true, 60f, 1.5f, true) == null, "defended and ruins are skipped");
+        check(ExploreMath.pick(all, 0, 0, null, null, 4000f, new HashSet<String>(Arrays.asList("a", "d")), true, 200f, 1.5f, true) == def, "defended is fine when our DP covers it x margin");
+        check(ExploreMath.pick(all, 0, 0, null, null, 4000f, new HashSet<String>(Arrays.asList("a")), true, 60f, 1.5f, false) == null, "explore_survey = false: no survey stops");
+    }
+
+    // ------------------------------------------------------------------ panel rows
+
+    static void hud() {
+        Hud.Data d = new Hud.Data();
+        d.credits = 128400f; d.supplyDays = 12f; d.fuelLy = 18f; d.lowestCR = 0.72f; d.nearestFriendlyLy = 3f;
+        d.goal = "Travel to Yesod - 2/4 jumps"; d.chip = "RUN 3.0d left"; d.chipLevel = 1;
+        d.repFaction = "Hegemony"; d.repRel = 4f; d.repReq = 10f;
+        d.suggestions.add("Resupply 60 days"); d.suggestions.add("Hunt Kade"); d.suggestions.add("Sell cargo"); d.suggestions.add("4th is dropped");
+        d.fleet.add("Wolf|0.35|1.0"); d.fleet.add("Hound|0.8|0.4");
+        d.open = 0;
+        List<Hud.Row> r = Hud.rows(d);
+        Hud.Row stats = r.get(1);
+        check(stats.kind.equals("stats") && stats.parts.get(0).equals("128k cr"), "header: credits condensed");
+        check(stats.partLevels.get(1) == Hud.L_BAD, "header: 12 days of supplies is red (min 15)");
+        check(stats.partLevels.get(3) == Hud.L_GOOD, "header: CR 72% is green (min 40, amber under 60)");
+        int buttons = 0, bars = 0;
+        for (Hud.Row x : r) { if (x.kind.equals("button")) buttons++; if (x.kind.equals("bar")) bars++; }
+        check(buttons == 3, "exactly three next steps");
+        check(bars == 1, "commission bar shown");
+        boolean fleetRed = false;
+        for (Hud.Row x : r) if (x.text.contains("Wolf") && x.level == Hud.L_BAD) fleetRed = true;
+        check(fleetRed, "open fleet section: low-CR ship red");
+        d.open = -1;
+        boolean anyFleet = false;
+        for (Hud.Row x : Hud.rows(d)) if (x.text.contains("Wolf")) anyFleet = true;
+        check(!anyFleet, "closed sections hide their items");
+        d.folded = true;
+        check(Hud.rows(d).size() == 3, "folded: title, stats, governor chip only");
+        check(Hud.cycle(0) == 1 && Hud.cycle(3) == -1 && Hud.cycle(-1) == 0, "cycle key: fleet > bounties > trades > explore > none");
+        check(Hud.money(1250000f).equals("1.3M") && Hud.money(980f).equals("980"), "money format");
+        check(Hud.fuelLevel(4f, 3f) == Hud.L_BAD, "fuel barely reaching the nearest market is red");
+    }
+
+    // ------------------------------------------------------------------ json
+
+    static void json() {
+        Map<String, Object> o = Json.obj();
+        o.put("a", 1);
+        o.put("s", "q\"uote\nnl");
+        o.put("f", 2.5f);
+        o.put("n", null);
+        List<Object> l = Json.arr(); l.add(1); l.add("x");
+        o.put("l", l);
+        o.put("e", Json.obj());
+        String j = Json.write(o);
+        check(j.contains("\"a\": 1") && j.contains("\"s\": \"q\\\"uote\\nnl\"") && j.contains("\"f\": 2.5") && j.contains("\"n\": null")
+                && j.contains("[1, \"x\"]") && j.contains("\"e\": {}"), "json writer: " + j);
+        check(Json.write(Float.NaN).equals("null"), "NaN -> null");
+    }
+}

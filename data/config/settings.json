@@ -1,0 +1,5 @@
+{
+	# Claude Bridge: keep the game running when its window is not in front,
+	# so tasks keep going while you type to Claude.
+	"idleWhileWindowNotVisible":false,
+}
