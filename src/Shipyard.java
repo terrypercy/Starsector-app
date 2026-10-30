@@ -646,6 +646,53 @@ public final class Shipyard {
                 + "; OP " + v.computeOPCost(stats) + "/" + maxOP + ", vents " + v.getNumFluxVents() + ", caps " + v.getNumFluxCapacitors();
     }
 
+    /** "store <ship|combat>": moves ships into this market's storage (needs paid storage access). Never the flagship. */
+    static String store(String q) {
+        MarketAPI m = GameReader.dockedMarket();
+        if (m == null) return "not docked at a market (dock first)";
+        if (!Misc.playerHasStorageAccess(m)) return "no storage access at " + m.getName() + " (pay the one-time fee on the Storage tab)";
+        CargoAPI st = Misc.getStorageCargo(m);
+        if (st == null) return m.getName() + " has no storage";
+        st.initMothballedShips(Global.getSector().getPlayerFaction().getId());
+        String key = q == null ? "" : q.trim().toLowerCase();
+        StringBuilder b = new StringBuilder();
+        for (FleetMemberAPI f : pf().getFleetData().getMembersListCopy()) {
+            if (f.isFlagship()) continue;
+            boolean match = key.equals("combat") ? !civilian(f)
+                    : Math.max(score(key, f.getShipName()), score(key, f.getHullSpec().getHullName())) >= 60;
+            if (!match) continue;
+            f.setCaptain(null);
+            pf().getFleetData().removeFleetMember(f);
+            st.getMothballedShips().addFleetMember(f);
+            b.append(b.length() == 0 ? "" : ", ").append(f.getShipName()).append(" (").append(f.getHullSpec().getHullName()).append(")");
+        }
+        pf().getFleetData().syncIfNeeded();
+        if (b.length() == 0) return "no ship matching '" + q + "' to store";
+        return "stored at " + m.getName() + ": " + b + "; storage fee about " + n(Misc.getStorageCostPerMonth(m)) + " cr/month";
+    }
+
+    /** "retrieve <ship|all>": takes ships back from this market's storage, then re-assigns idle officers. */
+    static String retrieve(String q) {
+        MarketAPI m = GameReader.dockedMarket();
+        if (m == null) return "not docked at a market (dock first)";
+        CargoAPI st = Misc.getStorageCargo(m);
+        if (st == null || st.getMothballedShips() == null) return "nothing stored at " + m.getName();
+        String key = q == null ? "all" : q.trim().toLowerCase();
+        StringBuilder b = new StringBuilder();
+        for (FleetMemberAPI f : st.getMothballedShips().getMembersListCopy()) {
+            if (!key.equals("all") && Math.max(score(key, f.getShipName()), score(key, f.getHullSpec().getHullName())) < 60) continue;
+            st.getMothballedShips().removeFleetMember(f);
+            pf().getFleetData().addFleetMember(f);
+            f.getRepairTracker().setMothballed(false);
+            try { f.updateStats(); } catch (Throwable ignored) {}
+            b.append(b.length() == 0 ? "" : ", ").append(f.getShipName()).append(" (").append(f.getHullSpec().getHullName()).append(")");
+        }
+        pf().getFleetData().syncIfNeeded();
+        if (b.length() == 0) return "nothing matching '" + key + "' stored at " + m.getName();
+        return "retrieved from " + m.getName() + ": " + b + "\n" + autoAssign();
+    }
+
+
     /** "unequip <ship> <weapon|all>": moves fitted weapons back to cargo. */
     static String unequip(String args) {
         String[] err = new String[1];

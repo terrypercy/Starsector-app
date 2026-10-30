@@ -458,6 +458,8 @@ public class Captain implements EveryFrameScript {
         if (c.equals("activate")) return Shipyard.activate(a);
         if (c.equals("equip")) return Shipyard.equip(a);
         if (c.equals("unequip")) return Shipyard.unequip(a);
+        if (c.equals("store")) return Shipyard.store(a);
+        if (c.equals("retrieve")) return Shipyard.retrieve(a);
         if (c.equals("crew") && !(t.size() > 1 && t.get(1).equalsIgnoreCase("add"))) return Shipyard.crew(a);
         // cheat spellings of names the real commands now use
         if (c.equals("repair")) return runner.run("repair"); // "repair instant": cheat-gated inside CommandRunner
