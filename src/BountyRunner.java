@@ -67,6 +67,9 @@ public class BountyRunner implements EveryFrameScript {
     private final java.util.Set<String> triedSites = new java.util.HashSet<String>();
     static final java.util.List<String> HUNT_CTX = DialogAgent.ctx("hunt", "travel");
     private long bestDistTs = 0L;
+    // 1.0.3: in-system movement on the way out counts as progress (light-years can't shrink before the jump)
+    private com.fs.starfarer.api.campaign.LocationAPI moveLoc;
+    private float moveX, moveY;
 
     public static void install() {
         instance = new BountyRunner();
@@ -406,6 +409,13 @@ public class BountyRunner implements EveryFrameScript {
         float distLY = pf().getContainingLocation() == target.fleet.getContainingLocation()
                 ? Misc.getDistance(pf(), target.fleet) / 2000f : Misc.getDistanceToPlayerLY(target.fleet) + 10f;
         long nowTs = sector().getClock().getTimestamp();
+        boolean movedOut = pf().getContainingLocation() != target.fleet.getContainingLocation() && !pf().isInHyperspace()
+                && pf().getContainingLocation() == moveLoc
+                && Misc.getDistance(pf().getLocation(), new org.lwjgl.util.vector.Vector2f(moveX, moveY)) > 200f;
+        if (moveLoc != pf().getContainingLocation() || movedOut) {
+            moveLoc = pf().getContainingLocation(); moveX = pf().getLocation().x; moveY = pf().getLocation().y;
+            if (movedOut || bestDistTs != 0L) bestDistTs = nowTs;
+        }
         if (distLY < bestDistLY - 0.02f || bestDistTs == 0L) { bestDistLY = distLY; bestDistTs = nowTs; }
         else if (sector().getClock().getElapsedDaysSince(bestDistTs) > 2f) {
             pause("no progress toward " + target.name + " for 2 days (" + String.format(java.util.Locale.ROOT, "%.1f", Misc.getDistanceToPlayerLY(target.fleet)) + " ly / " + Math.round(Misc.getDistance(pf(), target.fleet)) + " su away)");
