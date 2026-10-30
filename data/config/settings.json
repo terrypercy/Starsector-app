@@ -2,4 +2,6 @@
 	# Claude Bridge: keep the game running when its window is not in front,
 	# so tasks keep going while you type to Claude.
 	"idleWhileWindowNotVisible":false,
+	# Claude Captain 1.0.5: holding the game's speed-up control runs the campaign 4x (default 2)
+	"campaignSpeedupMult":4,
 }
