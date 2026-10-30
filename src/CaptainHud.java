@@ -98,7 +98,7 @@ public class CaptainHud implements CampaignUIRenderingListener, EveryFrameScript
             }
             foldWas = fk; cycleWas = ck;
             if (armed != null && now - armedAt > 6000L) { armed = null; dirty = true; }
-            if (dirty || now - lastScan > 1500L) { dirty = false; lastScan = now; scan(); }
+            if (dirty || now - lastScan > 2500L) { dirty = false; lastScan = now; scan(); }
             if (failed) return;
             if (panel != null) { try { panel.advance(amount); } catch (Throwable ignored) {} }
             if (!events) pollMouse();

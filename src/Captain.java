@@ -171,6 +171,7 @@ public class Captain implements EveryFrameScript {
     private void step(long now) {
         Goals.Goal g = goal;
         if (g != null && !g.finished()) {
+            if (g instanceof Goals.Runner) ((Goals.Runner) g).follow();
             if (g.running()) { g.tick(now); goalReported = false; }
             if ("paused".equals(g.state) && !goalReported) {
                 goalReported = true;

@@ -683,6 +683,11 @@ public final class Goals {
             state = "running";
             if (hunt) BountyRunner.hunt("resume"); else TripRunner.resume();
         }
+        /** The runner was resumed directly ('hunt resume'): follow it. */
+        public void follow() {
+            String st = hunt ? BountyRunner.state : TripRunner.state;
+            if ("paused".equals(state) && !"paused".equals(st)) state = "running";
+        }
         public void cancel() {
             if (hunt) BountyRunner.hunt("stop"); else TripRunner.cancel("by Claude");
             if (!finished()) fail("cancelled");
