@@ -475,6 +475,8 @@ public class Captain implements EveryFrameScript {
         if (c.equals("mothball")) return Shipyard.mothball(a);
         if (c.equals("repairs")) return Shipyard.repairs(a);
         if (c.equals("addmod")) return Shipyard.addMod(a);
+        if (c.equals("flux")) return Shipyard.flux(a);
+        if (c.equals("loadout")) return Shipyard.loadout(a);
         if (c.equals("removemod")) return Shipyard.removeMod(a);
         if (c.equals("missions")) return Missions.list();
         if (c.equals("accept")) return Missions.accept(a);

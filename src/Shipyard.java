@@ -1203,4 +1203,107 @@ public final class Shipyard {
         EventLog.info("shipyard", "sold " + count + " weapons/wings at " + m.getName() + " for " + n(total) + " cr");
         return "sold " + count + " weapons/wings on the " + sub.getNameOneLine() + " for " + n(total) + " cr; credits " + n(pf().getCargo().getCredits().get()) + "\n" + b.toString().trim();
     }
+
+    /**
+     * 1.0.7: "flux <ship|all> fill" puts every free ordnance point into flux vents (up to the hull's limit), then
+     * capacitors; "flux <ship> <vents> <caps>" sets them exactly (capped at the limits and the free OP).
+     */
+    static String flux(String args) {
+        String a = args == null ? "" : args.trim();
+        String[] w = a.split("\\s+");
+        if (w.length < 2) return "usage: flux <ship|all> fill | flux <ship> <vents> <caps>";
+        boolean fill = w[w.length - 1].equalsIgnoreCase("fill");
+        Integer wantV = null, wantC = null;
+        String shipQ;
+        if (fill) {
+            shipQ = a.substring(0, a.toLowerCase(Locale.ROOT).lastIndexOf("fill")).trim();
+        } else {
+            if (w.length < 3) return "usage: flux <ship> <vents> <caps>";
+            try { wantV = Integer.parseInt(w[w.length - 2]); wantC = Integer.parseInt(w[w.length - 1]); }
+            catch (NumberFormatException e) { return "usage: flux <ship> <vents> <caps>"; }
+            StringBuilder q = new StringBuilder();
+            for (int i = 0; i < w.length - 2; i++) q.append(i == 0 ? "" : " ").append(w[i]);
+            shipQ = q.toString();
+        }
+        List<FleetMemberAPI> ships = new ArrayList<FleetMemberAPI>();
+        if (shipQ.equalsIgnoreCase("all")) {
+            for (FleetMemberAPI f : pf().getFleetData().getMembersListCopy()) if (!civilian(f) && !f.isMothballed()) ships.add(f);
+        } else {
+            FleetMemberAPI f = findMember(shipQ);
+            if (f == null) return "no ship matching '" + shipQ + "'";
+            ships.add(f);
+        }
+        MutableCharacterStatsAPI stats = Global.getSector().getPlayerStats();
+        StringBuilder b = new StringBuilder();
+        for (FleetMemberAPI m : ships) {
+            ShipVariantAPI v = m.getVariant().clone();
+            v.setSource(VariantSource.REFIT);
+            if (v.isStockVariant()) v.setHullVariantId(Misc.genUID());
+            com.fs.starfarer.api.combat.ShipAPI.HullSize size = v.getHullSize();
+            int maxV = com.fs.starfarer.api.characters.SkillsChangeRemoveVentsCapsEffect.getMaxVents(size, stats);
+            int maxC = com.fs.starfarer.api.characters.SkillsChangeRemoveVentsCapsEffect.getMaxCaps(size, stats);
+            int maxOP = m.getHullSpec().getOrdnancePoints(stats);
+            int beforeV = v.getNumFluxVents(), beforeC = v.getNumFluxCapacitors();
+            if (fill) {
+                int free = maxOP - v.computeOPCost(stats);
+                int addV = Math.max(0, Math.min(free, maxV - v.getNumFluxVents()));
+                v.setNumFluxVents(v.getNumFluxVents() + addV);
+                free = maxOP - v.computeOPCost(stats);
+                int addC = Math.max(0, Math.min(free, maxC - v.getNumFluxCapacitors()));
+                v.setNumFluxCapacitors(v.getNumFluxCapacitors() + addC);
+            } else {
+                v.setNumFluxVents(0); v.setNumFluxCapacitors(0);
+                int free = maxOP - v.computeOPCost(stats);
+                int nv = Math.max(0, Math.min(Math.min(wantV, maxV), free));
+                v.setNumFluxVents(nv);
+                free = maxOP - v.computeOPCost(stats);
+                v.setNumFluxCapacitors(Math.max(0, Math.min(Math.min(wantC, maxC), free)));
+            }
+            m.setVariant(v, false, true);
+            try { m.updateStats(); } catch (Throwable ignored) {}
+            b.append(m.getShipName()).append(": vents ").append(beforeV).append(" -> ").append(v.getNumFluxVents()).append(" (max ").append(maxV)
+             .append("), caps ").append(beforeC).append(" -> ").append(v.getNumFluxCapacitors()).append(" (max ").append(maxC).append("); OP ")
+             .append(v.computeOPCost(stats)).append("/").append(maxOP).append("\n");
+        }
+        pf().getFleetData().syncIfNeeded();
+        return b.toString().trim();
+    }
+
+    /** 1.0.7: "loadout <ship|all>": weapons, wings, hullmods, d-mods, vents/caps and OP, read-only. */
+    static String loadout(String q) {
+        List<FleetMemberAPI> ships = new ArrayList<FleetMemberAPI>();
+        String k = q == null ? "all" : q.trim();
+        if (k.isEmpty() || k.equalsIgnoreCase("all")) { for (FleetMemberAPI f : pf().getFleetData().getMembersListCopy()) if (!civilian(f)) ships.add(f); }
+        else { FleetMemberAPI f = findMember(k); if (f == null) return "no ship matching '" + k + "'"; ships.add(f); }
+        MutableCharacterStatsAPI stats = Global.getSector().getPlayerStats();
+        StringBuilder b = new StringBuilder();
+        for (FleetMemberAPI m : ships) {
+            ShipVariantAPI v = m.getVariant();
+            Map<String, Integer> wc = new LinkedHashMap<String, Integer>();
+            for (String slot : v.getFittedWeaponSlots()) {
+                WeaponSpecAPI ws = Global.getSettings().getWeaponSpec(v.getWeaponId(slot));
+                String nm = ws == null ? v.getWeaponId(slot) : ws.getWeaponName();
+                Integer c = wc.get(nm); wc.put(nm, c == null ? 1 : c + 1);
+            }
+            StringBuilder mods = new StringBuilder(), dm = new StringBuilder();
+            for (String id : v.getHullMods()) {
+                HullModSpecAPI sp = Global.getSettings().getHullModSpec(id);
+                String nm = sp == null ? id : sp.getDisplayName();
+                if (sp != null && sp.hasTag(Tags.HULLMOD_DMOD)) dm.append(dm.length() == 0 ? "" : ", ").append(nm);
+                else mods.append(mods.length() == 0 ? "" : ", ").append(nm).append(v.getHullSpec().isBuiltInMod(id) ? " (built-in)" : "");
+            }
+            b.append(m.getShipName()).append(" | ").append(m.getHullSpec().getHullName()).append(" | OP ").append(v.computeOPCost(stats)).append("/")
+             .append(m.getHullSpec().getOrdnancePoints(stats)).append(" | vents ").append(v.getNumFluxVents()).append(" caps ").append(v.getNumFluxCapacitors())
+             .append("\n  weapons: ").append(wc).append("\n  wings: ").append(v.getWings()).append("\n  hullmods: ").append(mods)
+             .append(dm.length() > 0 ? "\n  d-mods: " + dm : "").append("\n");
+        }
+        StringBuilder known = new StringBuilder();
+        for (String id : Global.getSector().getPlayerFaction().getKnownHullMods()) {
+            HullModSpecAPI sp = Global.getSettings().getHullModSpec(id);
+            if (sp == null || sp.isHidden() || sp.isHiddenEverywhere()) continue;
+            known.append(known.length() == 0 ? "" : ", ").append(sp.getDisplayName());
+        }
+        b.append("known hullmods: ").append(known);
+        return b.toString();
+    }
 }
