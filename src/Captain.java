@@ -94,6 +94,7 @@ public class Captain implements EveryFrameScript {
             lastPoll = now;
             try { checkInbox(); } catch (Throwable t) { log.error("Claude Captain: inbox error", t); EventLog.warn("inbox", "inbox error: " + t); }
         }
+        try { StormGuard.tick(); } catch (Throwable t) { log.error("Claude Captain: storm guard error", t); }
         try { Governor.tick(); } catch (Throwable t) { log.error("Claude Captain: governor error", t); }
         try { step(now); } catch (Throwable t) {
             log.error("Claude Captain: step error", t);

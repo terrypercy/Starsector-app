@@ -17,6 +17,7 @@ public class CaptainTest {
         explore();
         hud();
         json();
+        storm();
         System.out.println("CaptainTest: " + passes + " passed, " + fails + " failed");
         if (fails > 0) System.exit(1);
     }
@@ -388,5 +389,23 @@ public class CaptainTest {
         check(j.contains("\"a\": 1") && j.contains("\"s\": \"q\\\"uote\\nnl\"") && j.contains("\"f\": 2.5") && j.contains("\"n\": null")
                 && j.contains("[1, \"x\"]") && j.contains("\"e\": {}"), "json writer: " + j);
         check(Json.write(Float.NaN).equals("null"), "NaN -> null");
+    }
+
+    // ------------------------------------------------------------------ storm guard (1.0.6)
+
+    static void storm() {
+        com.fs.starfarer.api.impl.campaign.terrain.HyperspaceTerrainPlugin.CellStateTracker c =
+            new com.fs.starfarer.api.impl.campaign.terrain.HyperspaceTerrainPlugin.CellStateTracker(0, 0, 1f, 1f);
+        check(!claudecaptain.StormGuard.bad(null), "storm: no cell is safe");
+        check(!claudecaptain.StormGuard.bad(c), "storm: waiting cell is safe");
+        c.state = com.fs.starfarer.api.impl.campaign.terrain.HyperspaceTerrainPlugin.CellState.STORM;
+        check(claudecaptain.StormGuard.bad(c), "storm: storming cell is avoided");
+        c.state = com.fs.starfarer.api.impl.campaign.terrain.HyperspaceTerrainPlugin.CellState.STORM_WANE;
+        check(claudecaptain.StormGuard.bad(c), "storm: waning storm is still avoided");
+        c.state = com.fs.starfarer.api.impl.campaign.terrain.HyperspaceTerrainPlugin.CellState.SIGNAL;
+        c.signal = 0.1f;
+        check(claudecaptain.StormGuard.bad(c), "storm: signaling cell about to storm is avoided");
+        c.signal = 0.8f;
+        check(!claudecaptain.StormGuard.bad(c), "storm: early signaling cell is safe");
     }
 }

@@ -37,6 +37,8 @@ public final class Rules {
       + "events_keep_lines = 2000      # events.txt keeps about this many lines\n"
       + "\n"
       + "# --- supplies, fuel, repairs\n"
+      + "storm_guard = true            # creep slowly through storming hyperspace cells (slow fleets are never struck)\n"
+      + "storm_guard_lookahead_s = 2.5 # how far ahead (seconds of travel) to look for storm cells\n"
       + "resupply_days = 60            # 'resupply' buys this many days of maintenance burn\n"
       + "resupply_cr_budget = true     # ...plus the supplies needed to recover CR to max\n"
       + "resupply_max_credit_pct = 25  # never spend more than this % of credits on one resupply\n"
