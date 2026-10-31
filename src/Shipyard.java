@@ -78,6 +78,15 @@ public final class Shipyard {
         SubmarketAPI open = m.getSubmarket(Submarkets.SUBMARKET_OPEN);
         SubmarketAPI black = m.getSubmarket(Submarkets.SUBMARKET_BLACK);
         if (open != null && mode == CoreUITradeMode.OPEN) out.add(open);
+        // 1.0.7: the military market too, when the game would open it (open trade mode, Favorable or better);
+        // each item still carries its own standing/commission requirement (checked as "can't buy here")
+        SubmarketAPI mil = m.getSubmarket(Submarkets.GENERIC_MILITARY);
+        if (mil != null && mode == CoreUITradeMode.OPEN) {
+            try {
+                com.fs.starfarer.api.campaign.RepLevel lvl = mil.getFaction().getRelationshipLevel(Global.getSector().getPlayerFaction());
+                if (lvl.isAtWorst(com.fs.starfarer.api.campaign.RepLevel.FAVORABLE)) out.add(mil);
+            } catch (Throwable ignored) {}
+        }
         if (black != null) out.add(black);
         for (SubmarketAPI s : out) {
             try { s.getPlugin().updateCargoPrePlayerInteraction(); } catch (Throwable ignored) {}
@@ -97,6 +106,7 @@ public final class Shipyard {
     }
 
     private static String subName(SubmarketAPI s) {
+        if (Submarkets.GENERIC_MILITARY.equals(s.getSpecId())) return "military";
         return Submarkets.SUBMARKET_BLACK.equals(s.getSpecId()) ? "black" : "open";
     }
 
@@ -285,8 +295,10 @@ public final class Shipyard {
                     boolean known = Global.getSector().getPlayerFaction().knowsHullMod(id);
                     what = "hullmod spec" + (known ? " (already known)" : "");
                 } else continue;
+                boolean illegal = s.getPlugin().isIllegalOnSubmarket(st, SubmarketPlugin.TransferAction.PLAYER_BUY);
                 String line = st.getDisplayName() + " [" + id + "] | " + what + " | " + subName(s) + " x" + Math.round(st.getSize())
-                        + " | " + n(stackPrice(st, s)) + " cr each";
+                        + " | " + n(stackPrice(st, s)) + " cr each"
+                        + (illegal ? " | can't buy: " + s.getPlugin().getIllegalTransferText(st, SubmarketPlugin.TransferAction.PLAYER_BUY).replace('\n', ' ') : "");
                 if (filter == null || filter.isEmpty() || line.toLowerCase(Locale.ROOT).contains(filter.toLowerCase(Locale.ROOT))) b.append(line).append("\n");
             }
         }
