@@ -348,6 +348,10 @@ public final class Shipyard {
         boolean blackOk = Rules.b("black_market_with_transponder", false);
         final List<Object[]> hits = new ArrayList<Object[]>(); // {Boolean buyable, Float ly, String line}
         int unseen = 0;
+        MarketAPI here = GameReader.dockedMarket();
+        if (here != null) for (SubmarketAPI s0 : here.getSubmarketsCopy()) {
+            try { s0.getPlugin().updateCargoPrePlayerInteraction(); } catch (Throwable ignored) {} // what the trade screen would show
+        }
         for (MarketAPI m : Global.getSector().getEconomy().getMarketsCopy()) {
             if (m.isHidden() || m.getPrimaryEntity() == null) continue;
             float ly = Misc.getDistanceToPlayerLY(m.getPrimaryEntity());
@@ -747,7 +751,7 @@ public final class Shipyard {
 
     /**
      * "equip <ship> with <weapon> [xN]": fits weapons from cargo into the ship's empty compatible slots
-     * (largest slot first), taking vents then capacitors off if the OP budget needs it. Nothing is bought.
+     * (largest slot first), taking capacitors then vents off if the OP budget needs it. Nothing is bought.
      */
     static String equip(String args) {
         String[] err = new String[1];
@@ -798,8 +802,9 @@ public final class Shipyard {
             int need = v.computeOPCost(stats) + (int) spec.getOrdnancePointCost(stats) - maxOP;
             int vents = v.getNumFluxVents(), caps = v.getNumFluxCapacitors();
             if (need > vents + caps) { note.append("; not enough OP for another ").append(spec.getWeaponName()); break; }
-            int dv = Math.min(need > 0 ? need : 0, vents); v.setNumFluxVents(vents - dv); need -= dv;
-            if (need > 0) v.setNumFluxCapacitors(caps - need);
+            // 1.0.8: capacitors go first (dissipation matters more in a fight), then vents
+            int dc = Math.min(need > 0 ? need : 0, caps); v.setNumFluxCapacitors(caps - dc); need -= dc;
+            if (need > 0) v.setNumFluxVents(vents - need);
             v.addWeapon(sl.getId(), wid);
             cargo.removeWeapons(wid, 1);
             fitted++;
