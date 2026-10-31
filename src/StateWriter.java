@@ -81,7 +81,7 @@ public final class StateWriter {
         GovMath.Input in = Governor.last;
         g.put("nearest_friendly_market", in.nearestFriendlyName);
         g.put("nearest_friendly_ly", r1(in.nearestFriendlyLy));
-        g.put("fuel_needed_there", Math.round(GovMath.fuelNeeded(in.nearestFriendlyLy, in.fuelPerLy, in.fuelMarginPct, in.fuelMarginLy)));
+        g.put("fuel_needed_there", Math.round(TravelMath.fuelWithMargin(in.nearestFriendlyLy, in.nearestFriendlyJumps, in.fuelPerLy, in.fuelMarginPct, in.fuelMarginLy)));
         g.put("lowest_combat_cr", Math.round(in.lowestCombatCR * 100f));
         g.put("low_cr_expected", in.lowCrExpected);
         return g;

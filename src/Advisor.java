@@ -226,7 +226,9 @@ public final class Advisor {
                 ly = 0f; // couldn't measure; don't let a bad number drive the plan
                 plan.notes.add("Couldn't measure the distance to the objective, so fuel for the trip is not counted.");
             }
-            tripFuel = ly * fuelPerLy;
+            com.fs.starfarer.api.campaign.LocationAPI oloc = objective.getContainingLocation();
+            int oj = TravelMath.jumps(oloc == pf.getContainingLocation(), pf.isInHyperspace(), oloc != null && oloc.isHyperspace());
+            tripFuel = TravelMath.fuel(ly, oj, fuelPerLy); // 1.0.7: jump points burn fuel too
             guardFp = hostileFpNear(pf, objective, 1500f);
             guarded = guardFp > 0f;
         }

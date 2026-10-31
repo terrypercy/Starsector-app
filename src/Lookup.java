@@ -257,6 +257,15 @@ public final class Lookup {
                 seen.put(p.getId(), Boolean.TRUE);
                 l.add(new Match(p.isStar() ? "star" : "planet", p.getId(), p.getName(), p));
             }
+            // 1.0.7: stations by name (Galatia Academy and other stations whose market is hidden from the economy list)
+            try {
+                for (SectorEntityToken e : sys.getEntitiesWithTag(com.fs.starfarer.api.impl.campaign.ids.Tags.STATION)) {
+                    if (e == null || e.getName() == null || seen.containsKey(e.getId())) continue;
+                    if (e.isDiscoverable()) continue; // not found yet
+                    seen.put(e.getId(), Boolean.TRUE);
+                    l.add(new Match("station", e.getId(), e.getName(), e));
+                }
+            } catch (Throwable ignored) {}
         }
         LocationAPI here = sector.getCurrentLocation();
         if (here != null) {

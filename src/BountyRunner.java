@@ -36,7 +36,7 @@ public class BountyRunner implements EveryFrameScript {
 
     static final class Target {
         String name, kind, where, faction = "";
-        float reward, theirDP, ly, daysLeft;
+        float reward, theirDP, ly, daysLeft, eta;
         CampaignFleetAPI fleet;
         PersonBountyIntel person;
         SystemBountyIntel system;
@@ -155,10 +155,29 @@ public class BountyRunner implements EveryFrameScript {
     }
 
     private static void judge(Target t, float ours, float margin, float maxLy) {
+        t.eta = etaTo(t.fleet != null ? t.fleet : null, t.ly, t.loc);
         if (ours <= 0f) { t.ok = false; t.why = "no combat ships ready"; return; }
         if (t.theirDP * margin > ours) { t.ok = false; t.why = "too strong: " + Math.round(t.theirDP) + " DP vs our " + Math.round(ours); return; }
         if (t.ly > maxLy) { t.ok = false; t.why = "too far: " + String.format("%.1f", t.ly) + " ly"; return; }
+        // 1.0.7: a bounty that expires before we can get there (with margin) isn't worth the trip
+        if (TravelMath.missesDeadline(t.daysLeft, t.eta, Rules.f("hunt_deadline_mult", 1.3f), Rules.f("hunt_deadline_extra_days", 3f))) {
+            t.ok = false; t.why = "won't make the deadline: ~" + Math.round(t.eta) + " days away, " + Math.round(t.daysLeft) + " left"; return;
+        }
         t.ok = true;
+    }
+
+    /** Jumps from the player fleet to a token's location. */
+    static int jumpsTo(SectorEntityToken e) {
+        LocationAPI there = e == null ? null : e.getContainingLocation();
+        return TravelMath.jumps(there == pf().getContainingLocation(), pf().isInHyperspace(), there != null && there.isHyperspace());
+    }
+
+    /** Days to reach a target at the fleet's travel speed (sustained burn not counted, so it's conservative). */
+    static float etaTo(SectorEntityToken e, float ly, LocationAPI loc) {
+        try {
+            int j = e != null ? jumpsTo(e) : TravelMath.jumps(loc == pf().getContainingLocation(), pf().isInHyperspace(), loc != null && loc.isHyperspace());
+            return TravelMath.etaDays(ly, j, pf().getTravelSpeed(), Misc.getUnitsPerLightYear(), sector().getClock().getSecondsPerDay());
+        } catch (Throwable t) { return 0f; }
     }
 
     static CampaignFleetAPI weakestHostileIn(LocationAPI loc, float maxDP) {
@@ -186,6 +205,7 @@ public class BountyRunner implements EveryFrameScript {
              .append(" | ").append(String.format("%.1f", t.ly)).append(" ly");
             if (t.reward > 0) b.append(" | ").append(Shipyard.n(t.reward)).append(" cr");
             if (t.daysLeft > 0) b.append(" | ").append(Math.round(t.daysLeft)).append(" days left");
+            if (t.eta > 0) b.append(" | ~").append(Math.round(t.eta)).append(" days away");
             b.append(" | target ").append(Math.round(t.theirDP)).append(" DP | ").append(t.ok ? "OK" : "skip: " + t.why).append("\n");
         }
         if (i == 0) b.append("(no bounties known - visit markets and check the intel screen)\n");
@@ -289,7 +309,8 @@ public class BountyRunner implements EveryFrameScript {
         try {
             float perLY = pf().getLogistics().getFuelCostPerLightYear();
             float ly = t == null || t.fleet == null ? 0f : Misc.getDistanceToPlayerLY(t.fleet);
-            float need = perLY * ly * 2f * 1.2f;  // there and back, 20% margin
+            int j = t == null || t.fleet == null ? 0 : jumpsTo(t.fleet);
+            float need = TravelMath.fuel(ly * 1.2f, j, perLY) * 2f;  // there and back, 20% margin, jump points included (1.0.7)
             if (pf().getCargo().getFuel() < need) return "fuel " + Math.round(pf().getCargo().getFuel()) + " but the round trip needs about " + Math.round(need);
         } catch (Throwable ignored) {}
         return null;

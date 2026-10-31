@@ -3,6 +3,7 @@ package claudecaptain;
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.CampaignFleetAPI;
 import com.fs.starfarer.api.campaign.InteractionDialogAPI;
+import com.fs.starfarer.api.campaign.LocationAPI;
 import com.fs.starfarer.api.campaign.SectorAPI;
 import com.fs.starfarer.api.campaign.SectorEntityToken;
 import com.fs.starfarer.api.campaign.econ.MarketAPI;
@@ -37,6 +38,7 @@ public final class Governor {
     private static final Map<String, Float> fleetDist = new HashMap<String, Float>();
     private static long lastBattleTs = 0L;
     private static float friendlyLy = -1f;
+    private static int friendlyJumps = 0;
     private static String friendlyName = "";
 
     static SectorAPI sector() { return Global.getSector(); }
@@ -176,15 +178,21 @@ public final class Governor {
         long now = System.currentTimeMillis();
         if (now - lastFriendly < 5000L && lastFriendly != 0L) return;
         lastFriendly = now;
-        float best = -1f;
+        float best = -1f, bestCost = Float.MAX_VALUE;
+        int bestJumps = 0;
         String name = "";
         for (MarketAPI m : sector().getEconomy().getMarketsCopy()) {
             if (m.isHidden() || m.getPrimaryEntity() == null || m.getFaction().isHostileTo("player")) continue;
             if (m.getSubmarket("open_market") == null && m.getSubmarket("black_market") == null) continue;
             float ly = Misc.getDistanceToPlayerLY(m.getPrimaryEntity());
-            if (best < 0f || ly < best) { best = ly; name = m.getName(); }
+            // 1.0.7: rank by fuel, so the jump points on the way count
+            LocationAPI there = m.getPrimaryEntity().getContainingLocation();
+            int j = TravelMath.jumps(there == pf.getContainingLocation(), pf.isInHyperspace(), there != null && there.isHyperspace());
+            float cost = ly + j;
+            if (cost < bestCost) { bestCost = cost; best = ly; bestJumps = j; name = m.getName(); }
         }
         friendlyLy = best;
+        friendlyJumps = bestJumps;
         friendlyName = name;
     }
 
@@ -202,6 +210,7 @@ public final class Governor {
         nearestFriendly(pf);
         in.nearestFriendlyLy = friendlyLy;
         in.nearestFriendlyName = friendlyName;
+        in.nearestFriendlyJumps = friendlyJumps;
         in.docked = d != null && d.getInteractionTarget() != null && d.getInteractionTarget().getMarket() != null
                 && !d.getInteractionTarget().getMarket().isPlanetConditionMarketOnly();
         in.inBattle = pf.getBattle() != null;

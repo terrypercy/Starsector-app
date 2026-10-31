@@ -32,7 +32,7 @@ public class CaptainModPlugin extends BaseModPlugin {
         BountyRunner.install();
         CaptainHud.install();
         LootTracker.register();
-        if (Rules.b("battle_auto_on_load", false)) BattleConfig.auto = true;
-        EventLog.info("mod", "campaign loaded; " + (Governor.armed ? "Claude in control (paused until 'run')" : "player in control until the first inbox batch"));
+        BattleConfig.load(); // 1.0.7: deploy list, auto and margin come back with the save
+        EventLog.info("mod", "campaign loaded; battle deploy " + BattleConfig.deploy + (BattleConfig.auto ? " (auto-battle on)" : "") + "; " + (Governor.armed ? "Claude in control (paused until 'run')" : "player in control until the first inbox batch"));
     }
 }

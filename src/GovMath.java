@@ -23,6 +23,8 @@ public final class GovMath {
         /** Light years to the nearest friendly market, or -1 when unknown/none. */
         public float nearestFriendlyLy = -1f;
         public String nearestFriendlyName = "";
+        /** 1.0.7: jumps on the way there (each burns a light-year of fuel). */
+        public int nearestFriendlyJumps = 0;
         public boolean docked, inBattle, inDialog;
         // combat readiness
         public float lowestCombatCR = 1f;
@@ -75,7 +77,7 @@ public final class GovMath {
         if (tier > 0) out.add(new Alarm("supplies:" + tier, tier == 4 ? "supplies are gone: ships lose CR and suffer accidents"
                 : "supplies for " + Math.round(days) + " days of maintenance (minimum " + Math.round(in.minSupplyDays) + ")"));
         if (!in.docked && in.nearestFriendlyLy >= 0f) {
-            float need = fuelNeeded(in.nearestFriendlyLy, in.fuelPerLy, in.fuelMarginPct, in.fuelMarginLy);
+            float need = TravelMath.fuelWithMargin(in.nearestFriendlyLy, in.nearestFriendlyJumps, in.fuelPerLy, in.fuelMarginPct, in.fuelMarginLy);
             if (in.fuel < need) out.add(new Alarm("fuel", "fuel " + Math.round(in.fuel) + " but reaching " + in.nearestFriendlyName + " ("
                     + String.format(java.util.Locale.ROOT, "%.1f", in.nearestFriendlyLy) + " ly) with margin needs " + Math.round(need)));
         }

@@ -18,6 +18,7 @@ public class CaptainTest {
         hud();
         json();
         storm();
+        travel();
         System.out.println("CaptainTest: " + passes + " passed, " + fails + " failed");
         if (fails > 0) System.exit(1);
     }
@@ -238,7 +239,10 @@ public class CaptainTest {
 
         List<DialogRules.Opt> enc = opts("Open a comm link", "Move in to engage", "Attempt to disengage", "Leave");
         String hostile = sig("fleet", "hostile=yes", enc);
-        check("Attempt to disengage".equals(chosen(r, travel, hostile, enc)), "travel: hostile blocks the way -> disengage");
+        check("pause".equals(chosen(r, travel, hostile, enc)), "travel: hostile blocks the way -> pause for Claude (1.0.7)");
+        DialogRules.Decision afterResume = r.decide(travel, hostile, enc, false, false);
+        check(afterResume == null || !"choose".equals(afterResume.action) || !enc.get(afterResume.option).text.equals("Move in to engage"),
+                "travel: after resume nothing engages by itself");
         check("Move in to engage".equals(chosen(r, Arrays.asList("hunt", "engage"), hostile.replace("bounty=no", "bounty=yes"), enc)), "hunt: bounty target -> engage");
         check(chosen(r, Arrays.asList("hunt", "engage"), hostile.replace("bounty=no", "bounty=yes").replace("stronger=no", "stronger=yes"), enc) == null,
                 "hunt: stronger than planned -> no rule (pause)");
@@ -270,7 +274,10 @@ public class CaptainTest {
 
         // safety: disabled and story-point/confirm options are never chosen
         List<DialogRules.Opt> spOnly = opts("*Attempt to disengage", "-Leave");
-        check(chosen(r, travel, sig("fleet", "hostile=yes", spOnly), spOnly) == null, "never picks confirm/story-point or disabled options");
+        String spPick = chosen(r, travel, sig("fleet", "hostile=yes", spOnly), spOnly);
+        check(spPick == null || "pause".equals(spPick), "never picks confirm/story-point or disabled options (got " + spPick + ")");
+        DialogRules.Decision spResumed = r.decide(travel, sig("fleet", "hostile=yes", spOnly), spOnly, false, false);
+        check(spResumed == null || !"choose".equals(spResumed.action), "...not even after a resume");
 
         // custom rules: tags, live edits, errors
         DialogRules c = DialogRules.parse("bar : match text=.*drink -> choose ^Buy a round\nbad line\n* : match ( -> choose x\n* : match x -> fly\n");
@@ -407,5 +414,31 @@ public class CaptainTest {
         check(claudecaptain.StormGuard.bad(c), "storm: signaling cell about to storm is avoided");
         c.signal = 0.8f;
         check(!claudecaptain.StormGuard.bad(c), "storm: early signaling cell is safe");
+    }
+
+    static void travel() {
+        check(claudecaptain.TravelMath.jumps(true, false, false) == 0, "travel: same place, no jumps");
+        check(claudecaptain.TravelMath.jumps(false, false, false) == 2, "travel: system to system = 2 jumps");
+        check(claudecaptain.TravelMath.jumps(false, true, false) == 1, "travel: hyperspace to system = 1 jump");
+        check(claudecaptain.TravelMath.jumps(false, false, true) == 1, "travel: system to hyperspace = 1 jump");
+        check(near(claudecaptain.TravelMath.fuel(10f, 2, 45f), 540f), "fuel: 10 ly + 2 jumps at 45/ly = 540");
+        check(near(claudecaptain.TravelMath.fuel(-1f, 0, 45f), 0f), "fuel: bad distance counts as 0");
+        check(near(claudecaptain.TravelMath.fuelWithMargin(10f, 2, 5f, 25f, 2f), (12.5f + 2f + 2f) * 5f), "fuel margin: pct + flat + jumps");
+        // 2000 su per ly, 10 s per day, 200 su/s -> 1 ly/day
+        check(near(claudecaptain.TravelMath.etaDays(10f, 0, 200f, 2000f, 10f), 10f), "eta: 10 ly at 1 ly/day = 10 days");
+        check(near(claudecaptain.TravelMath.etaDays(10f, 2, 200f, 2000f, 10f), 11f), "eta: jumps add half a day each");
+        check(claudecaptain.TravelMath.etaDays(10f, 0, 0f, 2000f, 10f) > 1000f, "eta: unknown speed is never 'in time'");
+        check(!claudecaptain.TravelMath.missesDeadline(0f, 50f, 1.3f, 3f), "deadline: no timer never misses");
+        check(claudecaptain.TravelMath.missesDeadline(17f, 13f, 1.3f, 3f), "deadline: 13 days away x1.3 + 3 > 17 left -> skip (Gomez)");
+        check(!claudecaptain.TravelMath.missesDeadline(76f, 10f, 1.3f, 3f), "deadline: 76 days left is plenty (Burris)");
+        String T = claudecaptain.TravelMath.JUMP_IN, O = claudecaptain.TravelMath.JUMP_OUT, S = claudecaptain.TravelMath.STEER_WELL, N = claudecaptain.TravelMath.NONE;
+        check(N.equals(claudecaptain.TravelMath.transverse(true, false, false, false, 10f, 50f, true)), "transverse: normal system uses jump points");
+        check(S.equals(claudecaptain.TravelMath.transverse(true, true, false, false, 900f, 50f, true)), "transverse: deep space far away -> steer to the well");
+        check(T.equals(claudecaptain.TravelMath.transverse(true, true, false, false, 20f, 50f, true)), "transverse: at the well -> jump in");
+        check(S.equals(claudecaptain.TravelMath.transverse(true, true, false, false, 20f, 50f, false)), "transverse: at the well on cooldown -> wait there");
+        check(N.equals(claudecaptain.TravelMath.transverse(true, true, false, false, -1f, 50f, true)), "transverse: no well known -> leave it to autopilot");
+        check(O.equals(claudecaptain.TravelMath.transverse(false, false, true, false, -1f, 50f, true)), "transverse: leaving a deep-space system -> jump out");
+        check(N.equals(claudecaptain.TravelMath.transverse(false, true, true, true, -1f, 50f, true)), "transverse: already there -> nothing");
+        check(N.equals(claudecaptain.TravelMath.transverse(false, true, false, false, -1f, 50f, true)), "transverse: in a normal system -> use its jump point first");
     }
 }

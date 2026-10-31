@@ -250,17 +250,20 @@ public class CommandRunner {
         if (op.equals("auto")) {
             need(a, 2, "battle auto on|off");
             BattleConfig.auto = a.get(1).equalsIgnoreCase("on");
+            BattleConfig.save();
             lastMessage = "Auto-battle " + (BattleConfig.auto ? "on" : "off");
             return "auto-battle " + (BattleConfig.auto ? "ON: battles skip the deployment screen and the AI fights them" : "OFF");
         }
         if (op.equals("deploy")) {
             need(a, 2, "battle deploy auto | all | <ship>, <ship>, ...");
             BattleConfig.deploy = join(a.subList(1, a.size()));
-            return "next battle deploys: " + BattleConfig.deploy;
+            BattleConfig.save();
+            return "battles deploy: " + BattleConfig.deploy + " (kept in the save)";
         }
         if (op.equals("margin")) {
             need(a, 2, "battle margin <1.0-4.0>");
             BattleConfig.margin = (float) Math.max(1.0, Math.min(4.0, num(a.get(1))));
+            BattleConfig.save();
             return "auto deploy aims for " + BattleConfig.margin + "x the enemy's deployment points";
         }
         throw new CommandException("usage: battle | battle auto on|off | battle deploy auto|all|<ships> | battle margin <n>");

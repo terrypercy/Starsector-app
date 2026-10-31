@@ -159,9 +159,17 @@ public final class Goals {
             return (a.isHyperspace() ? 0 : 1) + (b.isHyperspace() ? 0 : 1);
         }
 
+        long tvTs = 0L;
+        int tvJumps = 0;
+
         /** Where to steer: a fleet in another system is reached through its star system first (the autopilot can't route to it). */
         SectorEntityToken steer() {
             LocationAPI there = dest.getContainingLocation();
+            // 1.0.7: a deep-space system (no jump points) is entered with Transverse Jump at its nascent gravity well
+            if (pf().isInHyperspace() && deepSpace(there) && Rules.b("transverse_in", true)) {
+                com.fs.starfarer.api.campaign.NascentGravityWellAPI w = wellFor(dest);
+                if (w != null) return w;
+            }
             if (dest instanceof CampaignFleetAPI && there != null && there != pf().getContainingLocation() && there instanceof StarSystemAPI) {
                 SectorEntityToken c = ((StarSystemAPI) there).getCenter();
                 if (c != null) return c;
@@ -219,6 +227,7 @@ public final class Goals {
             if (dest instanceof CampaignFleetAPI && !((CampaignFleetAPI) dest).isAlive()) { fail(dest.getName() + " is gone"); return; }
             if (sector().isPaused()) Governor.unpause();
             boolean same = pf.getContainingLocation() == dest.getContainingLocation();
+            if (transverse(pf, same, now)) return;
             float dist = Misc.getDistance(pf, dest) - dest.getRadius() - pf.getRadius();
             if (!dock) {
                 float need = within > 0f ? within : 150f;
@@ -257,6 +266,60 @@ public final class Goals {
                 sector().layInCourseFor(steer());
             }
         }
+
+        /**
+         * 1.0.7: Transverse Jump. Into a deep-space system: fly to its nascent gravity well, then jump (free).
+         * Out of one: jump to hyperspace (costs fuel and a little CR, the only way out). True when it acted this tick.
+         */
+        boolean transverse(CampaignFleetAPI pf, boolean same, long now) {
+            if (same || now - tvTs < 3000L) return false;
+            com.fs.starfarer.api.characters.AbilityPlugin fj = pf.getAbility("fracture_jump");
+            if (fj == null) return false;
+            boolean inHyper = pf.isInHyperspace();
+            boolean destDeep = deepSpace(dest.getContainingLocation()) && Rules.b("transverse_in", true);
+            boolean hereDeep = !inHyper && deepSpace(pf.getContainingLocation()) && Rules.b("transverse_out", true);
+            if (!destDeep && !hereDeep) return false;
+            float wellDist = -1f;
+            com.fs.starfarer.api.campaign.NascentGravityWellAPI w = inHyper ? wellFor(dest) : null;
+            if (w != null) wellDist = Math.max(0f, Misc.getDistance(pf, w) - w.getRadius() - pf.getRadius());
+            boolean usable = false;
+            try { usable = fj.isUsable() && !fj.isActiveOrInProgress(); } catch (Throwable ignored) {}
+            float range = 50f;
+            try { range = com.fs.starfarer.api.impl.campaign.abilities.FractureJumpAbility.NASCENT_JUMP_DIST; } catch (Throwable ignored) {}
+            String act = TravelMath.transverse(inHyper, destDeep, hereDeep, same, wellDist, range, usable);
+            if (TravelMath.JUMP_IN.equals(act) || TravelMath.JUMP_OUT.equals(act)) {
+                if (++tvJumps > 4) { pause("Transverse Jump didn't take after 4 tries (" + pf.getContainingLocation().getName() + ")"); return true; }
+                tvTs = now;
+                try { fj.activate(); } catch (Throwable t) { log.warn("Claude Captain: transverse jump failed", t); return false; }
+                EventLog.info("travel", TravelMath.JUMP_IN.equals(act)
+                        ? "Transverse Jump into " + dest.getContainingLocation().getName() + " (deep space, no jump points)"
+                        : "Transverse Jump out of " + pf.getContainingLocation().getName() + " (no jump points; costs fuel and some CR)");
+                return true;
+            }
+            return false;
+        }
+    }
+
+    /** A star system without jump points (deep space): only Transverse Jump gets in or out. */
+    static boolean deepSpace(LocationAPI l) {
+        if (!(l instanceof StarSystemAPI) || l.isHyperspace()) return false;
+        try { return l.getJumpPoints() == null || l.getJumpPoints().isEmpty(); } catch (Throwable t) { return false; }
+    }
+
+    /** The hyperspace nascent gravity well into the destination's system, preferring the one next to the destination. */
+    static com.fs.starfarer.api.campaign.NascentGravityWellAPI wellFor(SectorEntityToken dest) {
+        LocationAPI sys = dest.getContainingLocation();
+        if (sys == null || sector().getHyperspace() == null) return null;
+        com.fs.starfarer.api.campaign.NascentGravityWellAPI best = null;
+        float bd = Float.MAX_VALUE;
+        for (Object o : sector().getHyperspace().getEntities(com.fs.starfarer.api.campaign.NascentGravityWellAPI.class)) {
+            com.fs.starfarer.api.campaign.NascentGravityWellAPI w = (com.fs.starfarer.api.campaign.NascentGravityWellAPI) o;
+            SectorEntityToken t = w.getTarget();
+            if (t == null || t.getContainingLocation() != sys) continue;
+            float d = t == dest ? -1f : Misc.getDistance(t.getLocation(), dest.getLocation());
+            if (d < bd) { bd = d; best = w; }
+        }
+        return best;
     }
 
     static String where(SectorEntityToken t) { return t.getContainingLocation() == null ? "?" : t.getContainingLocation().getName(); }

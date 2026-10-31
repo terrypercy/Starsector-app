@@ -870,4 +870,259 @@ public final class Shipyard {
         plugin.autoAssignOfficers(pf());
         return fleet();
     }
+
+    // ------------------------------------------------------------------ 1.0.7: selling, mothballing, repairs, hullmods
+
+    /** Splits "ship words... rest words" at the longest leading ship name that matches a fleet member. */
+    private static Object[] shipAndRest(String args) {
+        String[] w = args.trim().split("\\s+");
+        for (int i = w.length; i >= 1; i--) {
+            StringBuilder head = new StringBuilder();
+            for (int j = 0; j < i; j++) head.append(j == 0 ? "" : " ").append(w[j]);
+            FleetMemberAPI f = findMember(head.toString());
+            if (f != null && Math.max(score(head.toString(), f.getShipName()), score(head.toString(), f.getHullSpec().getHullName())) >= 60) {
+                StringBuilder t = new StringBuilder();
+                for (int j = i; j < w.length; j++) t.append(j == i ? "" : " ").append(w[j]);
+                return new Object[] { f, t.toString().trim() };
+            }
+        }
+        return null;
+    }
+
+    /** What the market pays for a ship: its base sell value less the submarket's tariff. */
+    static float sellPrice(FleetMemberAPI f, SubmarketAPI s) {
+        return f.getBaseSellValue() * (1f - s.getTariff());
+    }
+
+    /**
+     * "sellship <ship> [black] [confirm]": without confirm it only quotes. Fitted weapons and fighter wings go to
+     * cargo first (the sale price doesn't pay for them); the officer stays in the fleet. Never the flagship.
+     */
+    static String sellShip(String args) {
+        String[] err = new String[1];
+        CoreUITradeMode[] mode = new CoreUITradeMode[1];
+        MarketAPI m = docked(err, mode);
+        if (m == null) return err[0];
+        List<String> words = new ArrayList<String>();
+        boolean confirm = false, black = false, anyway = false;
+        for (String w : args.trim().split("\\s+")) {
+            if (w.equalsIgnoreCase("confirm")) confirm = true;
+            else if (w.equalsIgnoreCase("black")) black = true;
+            else if (w.equalsIgnoreCase("anyway")) anyway = true;
+            else words.add(w);
+        }
+        StringBuilder q = new StringBuilder();
+        for (String w : words) q.append(q.length() == 0 ? "" : " ").append(w);
+        if (q.length() == 0) return "usage: sellship <ship> [black] [confirm]";
+        FleetMemberAPI f = findMember(q.toString());
+        if (f == null) return "no ship matching '" + q + "' in the fleet";
+        if (f.isFlagship()) return "won't sell the flagship (" + f.getShipName() + ")";
+        SubmarketAPI sub = black ? m.getSubmarket(Submarkets.SUBMARKET_BLACK)
+                : (mode[0] == CoreUITradeMode.OPEN ? m.getSubmarket(Submarkets.SUBMARKET_OPEN) : null);
+        if (sub == null) return black ? m.getName() + " has no black market" : m.getName() + "'s open market won't trade with you (try 'black')";
+        if (sub.getPlugin().isIllegalOnSubmarket(f, SubmarketPlugin.TransferAction.PLAYER_SELL))
+            return f.getHullSpec().getHullName() + " can't be sold on the " + sub.getNameOneLine() + ": "
+                    + sub.getPlugin().getIllegalTransferText(f, SubmarketPlugin.TransferAction.PLAYER_SELL);
+        if (black && pf().isTransponderOn() && !anyway)
+            return "the transponder is on: black-market trade costs standing with " + m.getFaction().getDisplayName()
+                    + " (turn it off first, or add 'anyway')";
+        float price = sellPrice(f, sub);
+        String what = f.getHullSpec().getHullName() + " \"" + f.getShipName() + "\"";
+        if (!confirm)
+            return "quote: " + what + " sells for " + n(price) + " cr on the " + sub.getNameOneLine() + " (base sell value "
+                    + n(f.getBaseSellValue()) + ", " + Math.round(sub.getTariff() * 100f) + "% tariff, " + dmods(f) + " d-mods); fitted weapons and wings go to cargo first. "
+                    + "Send 'sellship " + q + (black ? " black" : "") + " confirm' to sell.";
+        // strip weapons and wings into cargo, as a player would before selling
+        ShipVariantAPI v = f.getVariant().clone();
+        v.setSource(VariantSource.REFIT);
+        if (v.isStockVariant()) v.setHullVariantId(Misc.genUID());
+        int stripped = 0;
+        for (String slot : new ArrayList<String>(v.getFittedWeaponSlots())) {
+            WeaponSlotAPI sl = v.getSlot(slot);
+            if (sl == null || sl.isBuiltIn() || sl.isDecorative() || sl.isSystemSlot()) continue;
+            String id = v.getWeaponId(slot);
+            if (id == null) continue;
+            v.clearSlot(slot);
+            pf().getCargo().addWeapons(id, 1);
+            stripped++;
+        }
+        int builtInWings = v.getHullSpec().getBuiltInWings() == null ? 0 : v.getHullSpec().getBuiltInWings().size();
+        for (int i = builtInWings; i < v.getWings().size(); i++) {
+            String w = v.getWingId(i);
+            if (w == null) continue;
+            v.setWingId(i, null);
+            pf().getCargo().addFighters(w, 1);
+            stripped++;
+        }
+        f.setVariant(v, false, true);
+        f.setCaptain(null);
+        pf().getFleetData().removeFleetMember(f);
+        if (sub.getCargo().getMothballedShips() == null) sub.getCargo().initMothballedShips(sub.getFaction().getId());
+        f.getRepairTracker().setMothballed(true);
+        sub.getCargo().getMothballedShips().addFleetMember(f);
+        pf().getCargo().getCredits().add(price);
+        PlayerMarketTransaction tx = new PlayerMarketTransaction(m, sub, mode[0]);
+        tx.getShipsSold().add(new ShipSaleInfo(f, price));
+        tx.setCreditValue(price);
+        report(m, sub, mode[0], tx);
+        pf().getFleetData().syncIfNeeded();
+        EventLog.info("shipyard", "sold " + what + " for " + n(price) + " cr at " + m.getName());
+        float crew = pf().getCargo().getCrew(), berths = pf().getCargo().getMaxPersonnel();
+        float cargo = pf().getCargo().getSpaceUsed(), hold = pf().getCargo().getMaxCapacity();
+        float fuel = pf().getCargo().getFuel(), tanks = pf().getCargo().getMaxFuel();
+        return "sold " + what + " on the " + sub.getNameOneLine() + " for " + n(price) + " cr" + (stripped > 0 ? " (" + stripped + " weapons/wings moved to cargo)" : "")
+                + "; credits " + n(pf().getCargo().getCredits().get())
+                + (crew > berths ? "; WARNING crew " + n(crew) + " over berths " + n(berths) : "")
+                + (cargo > hold ? "; WARNING cargo " + n(cargo) + " over capacity " + n(hold) : "")
+                + (fuel > tanks ? "; WARNING fuel " + n(fuel) + " over tank capacity " + n(tanks) : "");
+    }
+
+    /** "mothball <ship>": no maintenance, can't deploy; the officer is freed (autoassign). Never the flagship. */
+    static String mothball(String q) {
+        if (q == null || q.trim().isEmpty()) return "usage: mothball <ship>";
+        FleetMemberAPI f = findMember(q);
+        if (f == null) return "no ship matching '" + q + "'";
+        if (f.isFlagship()) return "won't mothball the flagship";
+        if (f.isMothballed()) return f.getShipName() + " is already mothballed";
+        PersonAPI c = f.getCaptain();
+        boolean freed = c != null && !c.isDefault() && !c.isPlayer();
+        if (freed) f.setCaptain(null);
+        f.getRepairTracker().setMothballed(true);
+        try { f.updateStats(); } catch (Throwable ignored) {}
+        pf().getFleetData().syncIfNeeded();
+        return f.getShipName() + " (" + f.getHullSpec().getHullName() + "): mothballed (no maintenance, can't deploy; 'activate' brings it back)"
+                + (freed ? "\n" + autoAssign() : "");
+    }
+
+    /** "repairs on|off [ship|all]": suspends or resumes repairs and CR recovery (they cost supplies). */
+    static String repairs(String a) {
+        String[] w = a == null ? new String[0] : a.trim().split("\\s+", 2);
+        if (w.length == 0 || !(w[0].equalsIgnoreCase("on") || w[0].equalsIgnoreCase("off"))) {
+            StringBuilder b = new StringBuilder("repairs (usage: repairs on|off [ship|all])\n");
+            for (FleetMemberAPI f : pf().getFleetData().getMembersListCopy())
+                b.append(f.getShipName()).append(": ").append(f.getRepairTracker().isSuspendRepairs() ? "SUSPENDED" : "on")
+                 .append(", hull ").append(Math.round(f.getStatus().getHullFraction() * 100f)).append("%, CR ")
+                 .append(Math.round(f.getRepairTracker().getCR() * 100f)).append("/").append(Math.round(f.getRepairTracker().getMaxCR() * 100f)).append("%\n");
+            return b.toString().trim();
+        }
+        boolean on = w[0].equalsIgnoreCase("on");
+        String key = w.length > 1 ? w[1].trim() : "all";
+        StringBuilder b = new StringBuilder();
+        for (FleetMemberAPI f : pf().getFleetData().getMembersListCopy()) {
+            if (!key.equalsIgnoreCase("all") && Math.max(score(key, f.getShipName()), score(key, f.getHullSpec().getHullName())) < 60) continue;
+            f.getRepairTracker().setSuspendRepairs(!on);
+            b.append(b.length() == 0 ? "" : ", ").append(f.getShipName());
+        }
+        if (b.length() == 0) return "no ship matching '" + key + "'";
+        return "repairs " + (on ? "resumed" : "suspended") + ": " + b;
+    }
+
+    /** A stand-in ShipAPI for the hullmod's own "can this be installed" checks (the refit screen builds a real one). */
+    static ShipAPI fakeShip(FleetMemberAPI member, ShipVariantAPI v) { return new RefitShip(member, v); }
+
+    private static HullModSpecAPI modSpec(String q, boolean knownOnly) throws CommandException {
+        List<Lookup.Match> l = new ArrayList<Lookup.Match>();
+        for (Lookup.Match m : Lookup.hullmods()) {
+            if (knownOnly && !Global.getSector().getPlayerFaction().knowsHullMod(m.id)) continue;
+            l.add(m);
+        }
+        Lookup.Match m = Lookup.best(q, l, knownOnly ? "known hullmods" : "hullmods");
+        return Global.getSettings().getHullModSpec(m.id);
+    }
+
+    /** "addmod <ship> <hullmod>": installs a known hullmod if the OP and the hullmod's own checks allow it. */
+    static String addMod(String args) {
+        Object[] sr = shipAndRest(args == null ? "" : args);
+        if (sr == null || ((String) sr[1]).isEmpty()) return "usage: addmod <ship> <hullmod>";
+        FleetMemberAPI member = (FleetMemberAPI) sr[0];
+        HullModSpecAPI sp;
+        try { sp = modSpec((String) sr[1], true); } catch (CommandException e) { return e.getMessage(); }
+        String id = sp.getId(), name = sp.getDisplayName();
+        if (sp.hasTag(Tags.HULLMOD_DMOD)) return name + " is a d-mod";
+        ShipVariantAPI v = member.getVariant().clone();
+        v.setSource(VariantSource.REFIT);
+        if (v.isStockVariant()) v.setHullVariantId(Misc.genUID());
+        if (v.hasHullMod(id)) return member.getShipName() + " already has " + name;
+        MutableCharacterStatsAPI stats = Global.getSector().getPlayerStats();
+        int cost = sp.getCostFor(v.getHullSize());
+        int used = v.computeOPCost(stats), max = member.getHullSpec().getOrdnancePoints(stats);
+        if (used + cost > max) return name + " costs " + cost + " OP; " + member.getShipName() + " has " + (max - used) + " free (" + used + "/" + max + ")";
+        MarketAPI market = GameReader.dockedMarket();
+        CoreUITradeMode mode = CoreUITradeMode.NONE;
+        try { InteractionDialogAPI d = Global.getSector().getCampaignUI().getCurrentInteractionDialog(); if (d != null && market != null) mode = Trader.tradeMode(d); } catch (Throwable ignored) {}
+        ShipAPI ship = fakeShip(member, v);
+        try {
+            com.fs.starfarer.api.combat.HullModEffect fx = sp.getEffect();
+            if (fx != null && !fx.isApplicableToShip(ship)) {
+                String why = null;
+                try { why = fx.getUnapplicableReason(ship); } catch (Throwable ignored) {}
+                return name + " can't go on " + member.getShipName() + (why == null ? "" : ": " + why);
+            }
+            if (fx != null && !fx.canBeAddedOrRemovedNow(ship, market, mode)) {
+                String why = null;
+                try { why = fx.getCanNotBeInstalledNowReason(ship, market, mode); } catch (Throwable ignored) {}
+                return name + " can't be installed here" + (why == null ? "" : ": " + why);
+            }
+        } catch (Throwable t) {
+            return name + ": its install check needs the refit screen (" + t.getClass().getSimpleName() + "); fit it there";
+        }
+        v.addMod(id);
+        member.setVariant(v, false, true);
+        try { member.updateStats(); } catch (Throwable ignored) {}
+        pf().getFleetData().syncIfNeeded();
+        return "installed " + name + " on " + member.getShipName() + " (" + cost + " OP); OP " + member.getVariant().computeOPCost(stats) + "/" + max;
+    }
+
+    /** "removemod <ship> <hullmod>": removes a fitted hullmod (not built-in, s-mod or d-mod; 'restore' handles d-mods). */
+    static String removeMod(String args) {
+        Object[] sr = shipAndRest(args == null ? "" : args);
+        if (sr == null || ((String) sr[1]).isEmpty()) return "usage: removemod <ship> <hullmod>";
+        FleetMemberAPI member = (FleetMemberAPI) sr[0];
+        HullModSpecAPI sp;
+        try { sp = modSpec((String) sr[1], false); } catch (CommandException e) { return e.getMessage(); }
+        String id = sp.getId(), name = sp.getDisplayName();
+        ShipVariantAPI v = member.getVariant().clone();
+        v.setSource(VariantSource.REFIT);
+        if (v.isStockVariant()) v.setHullVariantId(Misc.genUID());
+        if (!v.getNonBuiltInHullmods().contains(id)) return member.getShipName() + " has no removable " + name;
+        if (sp.hasTag(Tags.HULLMOD_DMOD)) return name + " is a d-mod: use 'restore'";
+        if (v.getSMods().contains(id)) return name + " is built in (s-mod)";
+        MarketAPI market = GameReader.dockedMarket();
+        CoreUITradeMode mode = CoreUITradeMode.NONE;
+        try { InteractionDialogAPI d = Global.getSector().getCampaignUI().getCurrentInteractionDialog(); if (d != null && market != null) mode = Trader.tradeMode(d); } catch (Throwable ignored) {}
+        try {
+            com.fs.starfarer.api.combat.HullModEffect fx = sp.getEffect();
+            ShipAPI ship = fakeShip(member, v);
+            if (fx != null && !fx.canBeAddedOrRemovedNow(ship, market, mode)) {
+                String why = null;
+                try { why = fx.getCanNotBeInstalledNowReason(ship, market, mode); } catch (Throwable ignored) {}
+                return name + " can't be removed here" + (why == null ? "" : ": " + why);
+            }
+        } catch (Throwable t) {
+            return name + ": its removal check needs the refit screen (" + t.getClass().getSimpleName() + "); remove it there";
+        }
+        v.removeMod(id);
+        member.setVariant(v, false, true);
+        try { member.updateStats(); } catch (Throwable ignored) {}
+        // wings beyond the remaining bays (e.g. Converted Hangar removed) go to cargo
+        StringBuilder extra = new StringBuilder();
+        try {
+            int bays = Math.round(member.getStats().getNumFighterBays().getModifiedValue());
+            ShipVariantAPI v2 = member.getVariant();
+            boolean changed = false;
+            for (int i = v2.getWings().size() - 1; i >= bays; i--) {
+                String w = v2.getWingId(i);
+                if (w == null) continue;
+                v2.setWingId(i, null);
+                pf().getCargo().addFighters(w, 1);
+                extra.append(extra.length() == 0 ? "; wings moved to cargo: " : ", ").append(w);
+                changed = true;
+            }
+            if (changed) member.setVariant(v2, false, true);
+        } catch (Throwable ignored) {}
+        pf().getFleetData().syncIfNeeded();
+        MutableCharacterStatsAPI stats = Global.getSector().getPlayerStats();
+        return "removed " + name + " from " + member.getShipName() + "; OP " + member.getVariant().computeOPCost(stats) + "/"
+                + member.getHullSpec().getOrdnancePoints(stats) + extra;
+    }
 }
