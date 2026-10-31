@@ -285,7 +285,7 @@ public final class Shipyard {
                 if (st.isWeaponStack()) {
                     WeaponSpecAPI w = st.getWeaponSpecIfWeapon();
                     id = w.getWeaponId();
-                    what = w.getSize() + " " + w.getMountType() + ", " + Math.round(w.getOrdnancePointCost(null)) + " OP";
+                    what = weaponStats(w);
                 } else if (st.isFighterWingStack()) {
                     FighterWingSpecAPI w = st.getFighterWingSpecIfWing();
                     id = w.getId();
@@ -303,6 +303,148 @@ public final class Shipyard {
             }
         }
         return b.toString();
+    }
+
+    /** "SMALL ENERGY, 6 OP, ENERGY, 500 range, 350 dps, 200 flux/s, PD" */
+    static String weaponStats(WeaponSpecAPI w) {
+        StringBuilder b = new StringBuilder();
+        b.append(w.getSize()).append(" ").append(w.getMountType()).append(", ").append(Math.round(w.getOrdnancePointCost(null))).append(" OP");
+        try { b.append(", ").append(w.getDamageType()); } catch (Throwable ignored) {}
+        try { b.append(", ").append(Math.round(w.getMaxRange())).append(" range"); } catch (Throwable ignored) {}
+        try {
+            com.fs.starfarer.api.combat.WeaponAPI.DerivedWeaponStatsAPI d = w.getDerivedStats();
+            if (d != null) {
+                float dps = d.getSustainedDps() > 0 ? d.getSustainedDps() : d.getDps();
+                if (dps > 0) b.append(", ").append(Math.round(dps)).append(" dps");
+                float fx = d.getSustainedFluxPerSecond() > 0 ? d.getSustainedFluxPerSecond() : d.getFluxPerSecond();
+                if (fx > 0) b.append(", ").append(Math.round(fx)).append(" flux/s");
+            }
+        } catch (Throwable ignored) {}
+        try { if (w.getAIHints().contains(com.fs.starfarer.api.combat.WeaponAPI.AIHints.PD)) b.append(", PD"); } catch (Throwable ignored) {}
+        return b.toString();
+    }
+
+    /**
+     * 1.0.8 "find <filter> [for <ship>]": weapons, wings, hullmod specs and ships in every market's open, military
+     * and black-market stock as last seen (stock is only known for submarkets you have opened; it may have
+     * restocked since). Every word of the filter must appear in the line. "for <ship>" keeps weapons that fit one
+     * of that ship's slots (empty or not). Buyable lines first, then nearest.
+     */
+    static String find(String q) {
+        String a = q == null ? "" : q.trim();
+        FleetMemberAPI ship = null;
+        String[] fp = a.split("(?i)\\s*\\bfor\\s+", 2);
+        if (fp.length == 2) {
+            ship = findMember(fp[1].trim());
+            if (ship == null) return "no ship in your fleet matching '" + fp[1].trim() + "'";
+            a = fp[0].trim();
+        }
+        if (a.isEmpty() && ship == null) return "usage: find <name|words> [for <ship>]  e.g. find small energy | find pd for Hlad | find heavy burst | find hullmod | find ship eagle";
+        String[] words = a.toLowerCase(Locale.ROOT).split("\\s+");
+        List<WeaponSlotAPI> slots = new ArrayList<WeaponSlotAPI>();
+        if (ship != null) for (WeaponSlotAPI sl : ship.getHullSpec().getAllWeaponSlotsCopy())
+            if (sl.isWeaponSlot() && !sl.isBuiltIn() && !sl.isDecorative() && !sl.isSystemSlot() && !sl.isStationModule()) slots.add(sl);
+        boolean tOn = pf().isTransponderOn();
+        boolean blackOk = Rules.b("black_market_with_transponder", false);
+        final List<Object[]> hits = new ArrayList<Object[]>(); // {Boolean buyable, Float ly, String line}
+        int unseen = 0;
+        for (MarketAPI m : Global.getSector().getEconomy().getMarketsCopy()) {
+            if (m.isHidden() || m.getPrimaryEntity() == null) continue;
+            float ly = Misc.getDistanceToPlayerLY(m.getPrimaryEntity());
+            boolean hostile = m.getFaction().isHostileTo(Global.getSector().getPlayerFaction());
+            String where = m.getName() + " (" + m.getFaction().getDisplayName()
+                    + (m.getContainingLocation() != null && !m.getContainingLocation().isHyperspace() ? ", " + m.getContainingLocation().getNameWithNoType() : "")
+                    + ", " + String.format(Locale.ROOT, "%.1f", ly) + " ly)";
+            for (SubmarketAPI s : m.getSubmarketsCopy()) {
+                String sp = s.getSpecId();
+                boolean open = Submarkets.SUBMARKET_OPEN.equals(sp), mil = Submarkets.GENERIC_MILITARY.equals(sp), black = Submarkets.SUBMARKET_BLACK.equals(sp);
+                if (!open && !mil && !black) continue;
+                CargoAPI c = null;
+                try { c = s.getPlugin().getCargoNullOk(); } catch (Throwable ignored) {}
+                if (c == null) { unseen++; continue; }
+                String age = "";
+                try {
+                    if (s.getPlugin() instanceof com.fs.starfarer.api.impl.campaign.submarkets.BaseSubmarketPlugin) {
+                        com.fs.starfarer.api.impl.campaign.submarkets.BaseSubmarketPlugin bp = (com.fs.starfarer.api.impl.campaign.submarkets.BaseSubmarketPlugin) s.getPlugin();
+                        float d = bp.getSinceLastCargoUpdate();
+                        age = " | stock " + Math.round(d) + "d old" + (d > bp.getMinSWUpdateInterval() ? ", may have restocked" : "");
+                    }
+                } catch (Throwable ignored) {}
+                String block = null;
+                if (hostile && !black) block = "hostile faction";
+                else if (black && tOn && !blackOk) block = "transponder on (black market)";
+                else if (mil) {
+                    try {
+                        if (!s.getFaction().getRelationshipLevel(Global.getSector().getPlayerFaction()).isAtWorst(com.fs.starfarer.api.campaign.RepLevel.FAVORABLE))
+                            block = "military market needs Favorable";
+                    } catch (Throwable ignored) {}
+                }
+                String sub = open ? "open" : mil ? "military" : "black";
+                for (CargoStackAPI st : c.getStacksCopy()) {
+                    String what, id;
+                    if (st.isWeaponStack()) {
+                        WeaponSpecAPI w = st.getWeaponSpecIfWeapon();
+                        if (ship != null) {
+                            boolean fits = false;
+                            for (WeaponSlotAPI sl : slots) if (sl.weaponFits(w)) { fits = true; break; }
+                            if (!fits) continue;
+                        }
+                        id = w.getWeaponId();
+                        what = "weapon " + weaponStats(w);
+                    } else if (ship != null) continue;
+                    else if (st.isFighterWingStack()) {
+                        id = st.getFighterWingSpecIfWing().getId();
+                        what = "wing, " + Math.round(st.getFighterWingSpecIfWing().getOpCost(null)) + " OP";
+                    } else if (st.isSpecialStack() && st.getSpecialDataIfSpecial() != null && "modspec".equals(st.getSpecialDataIfSpecial().getId())) {
+                        id = st.getSpecialDataIfSpecial().getData();
+                        what = "hullmod spec" + (Global.getSector().getPlayerFaction().knowsHullMod(id) ? " (already known)" : "");
+                    } else continue;
+                    String why = block;
+                    if (why == null) {
+                        try {
+                            if (s.getPlugin().isIllegalOnSubmarket(st, SubmarketPlugin.TransferAction.PLAYER_BUY))
+                                why = s.getPlugin().getIllegalTransferText(st, SubmarketPlugin.TransferAction.PLAYER_BUY).replace('\n', ' ');
+                        } catch (Throwable ignored) {}
+                    }
+                    String line = st.getDisplayName() + " [" + id + "] | " + what + " | " + where + " " + sub + " x" + Math.round(st.getSize())
+                            + " | " + n(stackPrice(st, s)) + " cr" + age + (why != null ? " | can't buy: " + why : "");
+                    if (matches(line, words)) hits.add(new Object[]{why == null, ly, line});
+                }
+                if (ship == null && c.getMothballedShips() != null) {
+                    for (FleetMemberAPI f : c.getMothballedShips().getMembersListCopy()) {
+                        String why = block;
+                        if (why == null) {
+                            try {
+                                if (s.getPlugin().isIllegalOnSubmarket(f, SubmarketPlugin.TransferAction.PLAYER_BUY))
+                                    why = s.getPlugin().getIllegalTransferText(f, SubmarketPlugin.TransferAction.PLAYER_BUY).replace('\n', ' ');
+                            } catch (Throwable ignored) {}
+                        }
+                        String line = f.getHullSpec().getHullName() + " [" + f.getHullId() + "] | ship " + f.getHullSpec().getHullSize()
+                                + ", d-mods " + dmods(f) + ", DP " + Math.round(f.getDeploymentPointsCost()) + " | " + where + " " + sub
+                                + " | " + n(shipPrice(f, s)) + " cr" + age + (why != null ? " | can't buy: " + why : "");
+                        if (matches(line, words)) hits.add(new Object[]{why == null, ly, line});
+                    }
+                }
+            }
+        }
+        java.util.Collections.sort(hits, new java.util.Comparator<Object[]>() {
+            public int compare(Object[] x, Object[] y) {
+                if (!x[0].equals(y[0])) return ((Boolean) x[0]) ? -1 : 1;
+                return Float.compare((Float) x[1], (Float) y[1]);
+            }
+        });
+        int max = (int) Rules.f("find_max_lines", 40f);
+        StringBuilder b = new StringBuilder("find '" + a + "'" + (ship != null ? " for " + ship.getShipName() + " (" + ship.getHullSpec().getHullName() + ")" : "")
+                + ": " + hits.size() + " hit(s) in stock you have seen" + (unseen > 0 ? " (" + unseen + " submarkets never opened: stock unknown)" : "") + "\n");
+        for (int i = 0; i < hits.size() && i < max; i++) b.append(hits.get(i)[2]).append("\n");
+        if (hits.size() > max) b.append("... ").append(hits.size() - max).append(" more (narrow the filter)\n");
+        return b.toString().trim();
+    }
+
+    private static boolean matches(String line, String[] words) {
+        String l = line.toLowerCase(Locale.ROOT);
+        for (String w : words) if (w.length() > 0 && !l.contains(w)) return false;
+        return true;
     }
 
     /** Buys weapons or fighter wings into your cargo: buyweapon <id or name> [qty]. */

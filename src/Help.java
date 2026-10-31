@@ -20,7 +20,7 @@ final class Help {
       + "  dialog | choose <number|text> | talk|contact [person] | loot | loot take|leave | recover [list|<n>]\n"
       + "  commission (standing report) | rep (standing report) | explore list\n"
       + "TRADE / SHIPYARD (Trade Runner)\n"
-      + "  plan | bounties | fleet | ships | weapons [filter] | buyship <n|name> | buyspec <hullmod> | buyweapon <name> [qty]\n"
+      + "  plan | bounties | fleet | ships | weapons [filter] | find <words> [for <ship>] | buyship <n|name> | buyspec <hullmod> | buyweapon <name> [qty]\n"
       + "  autofit <ship> [variant <id>] | assign <officer> to <ship> | autoassign | restore <ship|all> | crew [fill] | store <ship|combat> | retrieve <ship|all>\n"
       + "  activate <ship|all> | equip <ship> with <weapon> [xN] | unequip <ship> <weapon|all>\n"
       + "  sellship <ship> [black] [confirm] (quote first; weapons/wings go to cargo) | sellweapons [all|name] [black] [confirm] | mothball <ship> | repairs [on|off [ship|all]]\n"
