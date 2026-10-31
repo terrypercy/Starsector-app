@@ -671,6 +671,8 @@ public final class Goals {
 
     /** Visits one site: fly there, interact, take everything the explore dialog rules allow. */
     public static class Visit extends Goal {
+        long openTs = 0L;
+        int openTries = 0;
         float visitBest = Float.MAX_VALUE;
         long visitBestTs = 0L;
         final ExploreMath.Site site;
@@ -717,6 +719,12 @@ public final class Goals {
                 }
             }
             progress = Math.round(Math.max(0f, dist)) + " su to " + site.name;
+            // 1.0.7: debris fields are terrain; flying into one doesn't open its dialog, so open it the way a click does
+            if (pf().getContainingLocation() == ent.getContainingLocation() && dist <= 50f && now - openTs > 3000L && openTries < 5) {
+                openTs = now; openTries++;
+                try { sector().getCampaignUI().showInteractionDialog(ent); } catch (Throwable t) { log.warn("Claude Captain: could not open " + site.name, t); }
+                return;
+            }
             if (pf().getInteractionTarget() != ent || sector().getCampaignUI().getUltimateCourseTarget() != ent) {
                 pf().setInteractionTarget(ent);
                 sector().layInCourseFor(ent);
