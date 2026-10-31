@@ -23,7 +23,7 @@ final class Help {
       + "  plan | bounties | fleet | ships | weapons [filter] | buyship <n|name> | buyspec <hullmod> | buyweapon <name> [qty]\n"
       + "  autofit <ship> [variant <id>] | assign <officer> to <ship> | autoassign | restore <ship|all> | crew [fill] | store <ship|combat> | retrieve <ship|all>\n"
       + "  activate <ship|all> | equip <ship> with <weapon> [xN] | unequip <ship> <weapon|all>\n"
-      + "  sellship <ship> [black] [confirm] (quote first; weapons/wings go to cargo) | mothball <ship> | repairs [on|off [ship|all]]\n"
+      + "  sellship <ship> [black] [confirm] (quote first; weapons/wings go to cargo) | sellweapons [all|name] [black] [confirm] | mothball <ship> | repairs [on|off [ship|all]]\n"
       + "  addmod <ship> <hullmod> | removemod <ship> <hullmod> | missions | accept <n|name>\n"
       + "BRIDGE\n"
       + "  sell <commodity> <qty|all> [black] | buy <commodity> <qty|max> [black] | prices <commodity> | market [name] | find <text>\n"

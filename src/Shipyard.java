@@ -1138,4 +1138,57 @@ public final class Shipyard {
         return "removed " + name + " from " + member.getShipName() + "; OP " + member.getVariant().computeOPCost(stats) + "/"
                 + member.getHullSpec().getOrdnancePoints(stats) + extra;
     }
+
+    /**
+     * 1.0.7: "sellweapons [all|<name>] [black] [confirm]": spare weapons and fighter LPCs in cargo, priced the way the game
+     * pays for them (base value x shipWeaponSellPriceMult, less the submarket's tariff - erring low). Quotes unless 'confirm'.
+     */
+    static String sellWeapons(String args) {
+        String[] err = new String[1];
+        CoreUITradeMode[] mode = new CoreUITradeMode[1];
+        MarketAPI m = docked(err, mode);
+        if (m == null) return err[0];
+        boolean confirm = false, black = false;
+        StringBuilder q = new StringBuilder();
+        for (String w : (args == null ? "" : args.trim()).split("\\s+")) {
+            if (w.equalsIgnoreCase("confirm")) confirm = true;
+            else if (w.equalsIgnoreCase("black")) black = true;
+            else if (w.length() > 0) q.append(q.length() == 0 ? "" : " ").append(w);
+        }
+        String key = q.length() == 0 ? "all" : q.toString();
+        SubmarketAPI sub = black ? m.getSubmarket(Submarkets.SUBMARKET_BLACK)
+                : (mode[0] == CoreUITradeMode.OPEN ? m.getSubmarket(Submarkets.SUBMARKET_OPEN) : null);
+        if (sub == null) return black ? m.getName() + " has no black market" : m.getName() + "'s open market won't trade with you (try 'black')";
+        if (confirm && blackLocked(sub)) return "won't sell: " + blackLockedMsg(m);
+        float mult = 0.5f;
+        try { mult = Global.getSettings().getFloat("shipWeaponSellPriceMult"); } catch (Throwable ignored) {}
+        StringBuilder b = new StringBuilder();
+        float total = 0f;
+        int count = 0;
+        PlayerMarketTransaction tx = new PlayerMarketTransaction(m, sub, mode[0]);
+        for (CargoStackAPI st : pf().getCargo().getStacksCopy()) {
+            if (!st.isWeaponStack() && !st.isFighterWingStack()) continue;
+            String id = st.isWeaponStack() ? st.getWeaponSpecIfWeapon().getWeaponId() : st.getFighterWingSpecIfWing().getId();
+            String name = st.getDisplayName();
+            if (!key.equalsIgnoreCase("all") && Math.max(score(key, id), score(key, name)) < 60) continue;
+            if (sub.getPlugin().isIllegalOnSubmarket(st, SubmarketPlugin.TransferAction.PLAYER_SELL)) { b.append(name).append(": can't be sold here\n"); continue; }
+            int n = (int) Math.floor(st.getSize());
+            if (n < 1) continue;
+            float unit = st.getBaseValuePerUnit() * mult * (1f - sub.getTariff());
+            total += unit * n;
+            count += n;
+            b.append(n).append(" x ").append(name).append(" @ ").append(n(unit)).append(" = ").append(n(unit * n)).append("\n");
+            if (!confirm) continue;
+            if (st.isWeaponStack()) { pf().getCargo().removeWeapons(id, n); sub.getCargo().addWeapons(id, n); tx.getSold().addWeapons(id, n); }
+            else { pf().getCargo().removeFighters(id, n); sub.getCargo().addFighters(id, n); tx.getSold().addFighters(id, n); }
+        }
+        if (count == 0) return "no weapons or wings in cargo matching '" + key + "'" + (b.length() > 0 ? "\n" + b : "");
+        if (!confirm) return "quote, " + sub.getNameOneLine() + " at " + m.getName() + " (" + Math.round(sub.getTariff() * 100f) + "% tariff): " + count + " items for about "
+                + n(total) + " cr\n" + b + "send 'sellweapons " + key + (black ? " black" : "") + " confirm' to sell";
+        pf().getCargo().getCredits().add(total);
+        tx.setCreditValue(total);
+        report(m, sub, mode[0], tx);
+        EventLog.info("shipyard", "sold " + count + " weapons/wings at " + m.getName() + " for " + n(total) + " cr");
+        return "sold " + count + " weapons/wings on the " + sub.getNameOneLine() + " for " + n(total) + " cr; credits " + n(pf().getCargo().getCredits().get()) + "\n" + b.toString().trim();
+    }
 }
