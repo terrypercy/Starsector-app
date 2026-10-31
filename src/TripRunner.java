@@ -652,6 +652,8 @@ public class TripRunner implements EveryFrameScript {
             float left = qty - got;
             if (left < 1f) break;
             if (black && m.getSubmarket("black_market") == null) continue;
+            // 1.0.7: no black-market buying with the transponder on (it costs standing with the market's faction)
+            if (black && Shipyard.blackLocked(m.getSubmarket("black_market"))) continue;
             float stock = (float) Math.floor(Trader.liveStock(m, black, id));
             float q = Math.min(left, stock);
             if (q < 1f) continue;
