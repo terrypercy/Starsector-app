@@ -109,6 +109,8 @@ public final class Rules {
       + "# --- exploration while hunting\n"
       + "explore = true                # detour to undefended salvage while hunting/resting\n"
       + "explore_detour_su = 4000      # longest detour (extra distance) for one site\n"
+      + "explore_visit_max_days = 5    # 1.0.7: give up on one site after this many days\n"
+      + "explore_stall_days = 2        # 1.0.7: ...or when it hasn't got 200 su closer in this many days\n"
       + "explore_min_supply_days = 25  # never explore below this many days of maintenance supplies\n"
       + "explore_skip_defended = true  # skip defended sites unless our DP covers the defenders x hunt_margin\n"
       + "explore_survey = true         # survey planets on the way when the option is offered\n"

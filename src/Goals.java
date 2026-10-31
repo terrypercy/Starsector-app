@@ -671,6 +671,8 @@ public final class Goals {
 
     /** Visits one site: fly there, interact, take everything the explore dialog rules allow. */
     public static class Visit extends Goal {
+        float visitBest = Float.MAX_VALUE;
+        long visitBestTs = 0L;
         final ExploreMath.Site site;
         SectorEntityToken ent;
         boolean inDialog = false;
@@ -703,9 +705,17 @@ public final class Goals {
                 done("explored " + site.name + " [" + site.kind + "]");
                 return;
             }
-            if (sector().getClock().getElapsedDaysSince(startTs) > 20f) { Explorer.visited.add(site.id); fail("could not reach " + site.name + " in 20 days"); return; }
+            // 1.0.7: a detour that isn't closing in is dropped quickly (a debris field once ate 20 days of a hunt)
+            float maxDays = Rules.f("explore_visit_max_days", 5f);
+            if (sector().getClock().getElapsedDaysSince(startTs) > maxDays) { Explorer.visited.add(site.id); fail("could not reach " + site.name + " in " + Math.round(maxDays) + " days"); return; }
             if (pf().getBattle() != null) return;
             float dist = Misc.getDistance(pf(), ent) - ent.getRadius() - pf().getRadius();
+            if (pf().getContainingLocation() == ent.getContainingLocation()) {
+                if (dist < visitBest - 200f || visitBestTs == 0L) { visitBest = dist; visitBestTs = sector().getClock().getTimestamp(); }
+                else if (sector().getClock().getElapsedDaysSince(visitBestTs) > Rules.f("explore_stall_days", 2f)) {
+                    Explorer.visited.add(site.id); fail("no progress towards " + site.name + " for " + Math.round(Rules.f("explore_stall_days", 2f)) + " days"); return;
+                }
+            }
             progress = Math.round(Math.max(0f, dist)) + " su to " + site.name;
             if (pf().getInteractionTarget() != ent || sector().getCampaignUI().getUltimateCourseTarget() != ent) {
                 pf().setInteractionTarget(ent);
