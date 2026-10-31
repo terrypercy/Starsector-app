@@ -566,6 +566,41 @@ public final class Goals {
         return out;
     }
 
+    /** 1.0.8 "officers": every officer / mercenary for hire in the comm directories the game knows, nearest first. */
+    static String officersForHire() {
+        final List<Object[]> rows = new ArrayList<Object[]>();
+        for (MarketAPI m : sector().getEconomy().getMarketsCopy()) {
+            if (m.isHidden() || m.getPrimaryEntity() == null) continue;
+            boolean hostile = m.getFaction().isHostileTo("player");
+            for (PersonAPI p : people(m)) {
+                boolean merc = postIs(p, Ranks.POST_MERCENARY);
+                if (!merc && !postIs(p, Ranks.POST_OFFICER_FOR_HIRE)) continue;
+                float d = Misc.getDistanceToPlayerLY(m.getPrimaryEntity());
+                int lvl = 0;
+                try { lvl = p.getStats().getLevel(); } catch (Throwable ignored) {}
+                StringBuilder sk = new StringBuilder();
+                try {
+                    for (com.fs.starfarer.api.characters.MutableCharacterStatsAPI.SkillLevelAPI s : p.getStats().getSkillsCopy()) {
+                        if (s.getLevel() <= 0 || s.getSkill() == null || !s.getSkill().isCombatOfficerSkill()) continue;
+                        sk.append(sk.length() == 0 ? "" : ", ").append(s.getSkill().getName()).append(s.getLevel() >= 2 ? " (elite)" : "");
+                    }
+                } catch (Throwable ignored) {}
+                String line = p.getNameString() + " | level " + lvl + " | " + personality(p) + (merc ? " | MERCENARY (monthly salary, story point to hire)" : " | officer")
+                        + " | " + m.getName() + " (" + m.getFaction().getDisplayName() + ", " + String.format(java.util.Locale.ROOT, "%.1f", d) + " ly)"
+                        + (hostile ? " | hostile market" : "") + (sk.length() > 0 ? "\n    skills: " + sk : "");
+                rows.add(new Object[]{d, line});
+            }
+        }
+        java.util.Collections.sort(rows, new java.util.Comparator<Object[]>() {
+            public int compare(Object[] a, Object[] b) { return Float.compare((Float) a[0], (Float) b[0]); }
+        });
+        StringBuilder b = new StringBuilder("officers for hire in known comm directories (" + rows.size() + "); you have "
+                + pf().getFleetData().getOfficersCopy().size() + " officers\n");
+        for (Object[] r : rows) b.append(r[1]).append("\n");
+        if (rows.isEmpty()) b.append("(none known: officers show up in the comm directories of markets you visit)\n");
+        return b.toString().trim();
+    }
+
     static String personality(PersonAPI p) {
         try { return p.getPersonalityAPI().getId(); } catch (Throwable t) { return "?"; }
     }

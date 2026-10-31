@@ -12,7 +12,7 @@ final class Help {
       + "  events since <n> (-> recent.txt) | state | status (also status.txt) | selftest | rules | dialog sig\n"
       + "GOALS (wait until done/failed; every dialog on the way goes through dialog_rules.txt)\n"
       + "  travel|goto <place> | approach <place> <su> | dock [place] | wait <days>\n"
-      + "  resupply [days] | repair | hire [officer] [personality] | commission <faction> | explore [here]\n"
+      + "  resupply [days] | repair | hire [officer] [personality] | officers | commission <faction> | explore [here]\n"
       + "  hunt <n> | hunt auto [count] | go <market> [refill] | trip <n> [cap <cr>] (old 'run <n>') | runsell <n>\n"
       + "  loop <n> | trade loop <n> | ask <question> | <option> | ...\n"
       + "  cancel | resume | hunt stop|status|resume | loop stop\n"
