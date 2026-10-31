@@ -776,7 +776,16 @@ public final class Shipyard {
             int sc = Math.max(score(wq, id), ws == null ? 0 : score(wq, ws.getWeaponName()));
             if (sc > best) { best = sc; wid = id; }
         }
-        if (wid == null || best < 50) return "no weapon in cargo matching '" + wq + "'";
+        // 1.0.8: a fighter LPC in cargo that matches better goes into an empty bay
+        String fid = null; int fbest = 0;
+        for (CargoStackAPI st : cargo.getStacksCopy()) {
+            if (!st.isFighterWingStack()) continue;
+            FighterWingSpecAPI fs = st.getFighterWingSpecIfWing();
+            int sc = Math.max(score(wq, fs.getId()), score(wq, fs.getWingName()));
+            if (sc > fbest) { fbest = sc; fid = fs.getId(); }
+        }
+        if (fid != null && fbest >= 50 && fbest > best) return equipWings(member, fid, want);
+        if (wid == null || best < 50) return "no weapon or fighter LPC in cargo matching '" + wq + "'";
         WeaponSpecAPI spec = Global.getSettings().getWeaponSpec(wid);
         MutableCharacterStatsAPI stats = Global.getSector().getPlayerStats();
         ShipVariantAPI v = member.getVariant().clone();
@@ -817,6 +826,40 @@ public final class Shipyard {
         try { member.updateStats(); } catch (Throwable ignored) {}
         pf().getFleetData().syncIfNeeded();
         return "fitted " + fitted + " x " + spec.getWeaponName() + " on " + member.getShipName() + note
+                + "; OP " + v.computeOPCost(stats) + "/" + maxOP + ", vents " + v.getNumFluxVents() + ", caps " + v.getNumFluxCapacitors();
+    }
+
+    /** Fits fighter LPCs from cargo into empty bays, taking capacitors then vents off if OP is short. */
+    static String equipWings(FleetMemberAPI member, String fid, int want) {
+        CargoAPI cargo = pf().getCargo();
+        FighterWingSpecAPI fs = Global.getSettings().getFighterWingSpec(fid);
+        MutableCharacterStatsAPI stats = Global.getSector().getPlayerStats();
+        ShipVariantAPI v = member.getVariant().clone();
+        v.setSource(VariantSource.REFIT);
+        if (v.isStockVariant()) v.setHullVariantId(Misc.genUID());
+        int maxOP = member.getHullSpec().getOrdnancePoints(stats);
+        int bays = 0;
+        try { bays = Math.round(member.getStats().getNumFighterBays().getModifiedValue()); } catch (Throwable t) { bays = v.getHullSpec().getFighterBays(); }
+        int fitted = 0;
+        StringBuilder note = new StringBuilder();
+        for (int i = 0; i < bays && fitted < want; i++) {
+            if (v.getWingId(i) != null) continue;
+            if (cargo.getNumFighters(fid) < 1) { note.append("; ran out of ").append(fs.getWingName()).append(" LPCs"); break; }
+            int need = v.computeOPCost(stats) + Math.round(fs.getOpCost(member.getStats())) - maxOP;
+            int vents = v.getNumFluxVents(), caps = v.getNumFluxCapacitors();
+            if (need > vents + caps) { note.append("; not enough OP for another ").append(fs.getWingName()); break; }
+            int dc = Math.min(need > 0 ? need : 0, caps); v.setNumFluxCapacitors(caps - dc); need -= dc;
+            if (need > 0) v.setNumFluxVents(vents - need);
+            v.setWingId(i, fid);
+            cargo.removeFighters(fid, 1);
+            fitted++;
+            note.append("; bay ").append(i + 1);
+        }
+        if (fitted == 0) return "no empty fighter bay on " + member.getShipName() + " (" + bays + " bays)" + note;
+        member.setVariant(v, false, true);
+        try { member.updateStats(); } catch (Throwable ignored) {}
+        pf().getFleetData().syncIfNeeded();
+        return "fitted " + fitted + " x " + fs.getWingName() + " on " + member.getShipName() + note
                 + "; OP " + v.computeOPCost(stats) + "/" + maxOP + ", vents " + v.getNumFluxVents() + ", caps " + v.getNumFluxCapacitors();
     }
 
@@ -896,6 +939,18 @@ public final class Shipyard {
             v.clearSlot(slot);
             pf().getCargo().addWeapons(id, 1);
             b.append(b.length() == 0 ? "" : ", ").append(ws == null ? id : ws.getWeaponName()).append(" (").append(slot).append(")");
+        }
+        // 1.0.8: fighter wings too (built-in wings stay)
+        int builtIn = 0;
+        try { builtIn = v.getHullSpec().getBuiltInWings().size(); } catch (Throwable ignored) {}
+        for (int i = builtIn; i < 6; i++) {
+            String id = v.getWingId(i);
+            if (id == null) continue;
+            FighterWingSpecAPI fs = Global.getSettings().getFighterWingSpec(id);
+            if (!wq.equalsIgnoreCase("all") && Math.max(score(wq, id), fs == null ? 0 : score(wq, fs.getWingName())) < 60) continue;
+            v.setWingId(i, null);
+            pf().getCargo().addFighters(id, 1);
+            b.append(b.length() == 0 ? "" : ", ").append(fs == null ? id : fs.getWingName()).append(" (bay ").append(i + 1).append(")");
         }
         if (b.length() == 0) return "nothing fitted on " + member.getShipName() + " matches '" + wq + "'";
         v.autoGenerateWeaponGroups();
