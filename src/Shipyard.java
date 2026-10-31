@@ -85,6 +85,17 @@ public final class Shipyard {
         return out;
     }
 
+    /** 1.0.7: black-market trade with the transponder on costs standing with the market's faction; such buys are refused. */
+    static boolean blackLocked(SubmarketAPI s) {
+        return s != null && Submarkets.SUBMARKET_BLACK.equals(s.getSpecId()) && pf().isTransponderOn()
+                && !Rules.b("black_market_with_transponder", false);
+    }
+
+    static String blackLockedMsg(MarketAPI m) {
+        return "the transponder is on: black-market trade costs standing with " + m.getFaction().getDisplayName()
+                + " (send 'ability transponder off' first; if a patrol makes you turn it on, it stays on)";
+    }
+
     private static String subName(SubmarketAPI s) {
         return Submarkets.SUBMARKET_BLACK.equals(s.getSpecId()) ? "black" : "open";
     }
@@ -222,6 +233,7 @@ public final class Shipyard {
             }
         }
         if (pick == null || best < 30) return "no ship matching '" + arg + "' for sale here (run 'ships')";
+        if (blackLocked(from)) return pick.getHullSpec().getHullName() + " \"" + pick.getShipName() + "\" is on the black market and " + blackLockedMsg(m);
         if (from.getPlugin().isIllegalOnSubmarket(pick, SubmarketPlugin.TransferAction.PLAYER_BUY))
             return pick.getHullSpec().getHullName() + " can't be bought on the " + from.getNameOneLine() + ": "
                     + from.getPlugin().getIllegalTransferText(pick, SubmarketPlugin.TransferAction.PLAYER_BUY);
@@ -295,6 +307,7 @@ public final class Shipyard {
         SubmarketAPI from = null;
         int best = 0;
         float bestPrice = Float.MAX_VALUE;
+        boolean lockedHit = false;
         for (SubmarketAPI s : subs(m, mode[0])) {
             for (CargoStackAPI st : s.getCargo().getStacksCopy()) {
                 String id, name;
@@ -302,12 +315,13 @@ public final class Shipyard {
                 else if (st.isFighterWingStack()) { id = st.getFighterWingSpecIfWing().getId(); name = st.getFighterWingSpecIfWing().getWingName(); }
                 else continue;
                 if (s.getPlugin().isIllegalOnSubmarket(st, SubmarketPlugin.TransferAction.PLAYER_BUY)) continue;
+                if (blackLocked(s)) { lockedHit = true; continue; }
                 int sc = Math.max(score(a, id), score(a, name));
                 float pr = stackPrice(st, s);
                 if (sc > best || (sc == best && pr < bestPrice)) { best = sc; pick = st; from = s; bestPrice = pr; }
             }
         }
-        if (pick == null || best < 30) return "no weapon or wing matching '" + a + "' here (see 'weapons')";
+        if (pick == null || best < 30) return "no weapon or wing matching '" + a + "' here (see 'weapons')" + (lockedHit ? "; the black market is skipped because " + blackLockedMsg(m) : "");
         boolean wing = pick.isFighterWingStack();
         String id = wing ? pick.getFighterWingSpecIfWing().getId() : pick.getWeaponSpecIfWeapon().getWeaponId();
         int have = (int) Math.floor(pick.getSize());
@@ -343,6 +357,7 @@ public final class Shipyard {
             }
         }
         if (pick == null || best < 30) return "no hullmod spec matching '" + q + "' here (see 'weapons spec')";
+        if (blackLocked(from)) return "that spec is on the black market and " + blackLockedMsg(m);
         String id = pick.getSpecialDataIfSpecial().getData();
         HullModSpecAPI hs = Global.getSettings().getHullModSpec(id);
         String name = hs == null ? id : hs.getDisplayName();
@@ -417,7 +432,7 @@ public final class Shipyard {
         Fit(FleetMemberAPI m, MarketAPI mk, CoreUITradeMode md, float budget) {
             member = m; market = mk; mode = md; this.budget = budget;
             add(pf().getCargo(), null);
-            if (mk != null) for (SubmarketAPI s : subs(mk, md)) add(s.getCargo(), s);
+            if (mk != null) for (SubmarketAPI s : subs(mk, md)) if (!blackLocked(s)) add(s.getCargo(), s); // 1.0.7: no black-market buys with the transponder on
         }
 
         private void add(CargoAPI c, SubmarketAPI s) {
@@ -923,15 +938,13 @@ public final class Shipyard {
         if (sub.getPlugin().isIllegalOnSubmarket(f, SubmarketPlugin.TransferAction.PLAYER_SELL))
             return f.getHullSpec().getHullName() + " can't be sold on the " + sub.getNameOneLine() + ": "
                     + sub.getPlugin().getIllegalTransferText(f, SubmarketPlugin.TransferAction.PLAYER_SELL);
-        if (black && pf().isTransponderOn() && !anyway)
-            return "the transponder is on: black-market trade costs standing with " + m.getFaction().getDisplayName()
-                    + " (turn it off first, or add 'anyway')";
         float price = sellPrice(f, sub);
         String what = f.getHullSpec().getHullName() + " \"" + f.getShipName() + "\"";
         if (!confirm)
             return "quote: " + what + " sells for " + n(price) + " cr on the " + sub.getNameOneLine() + " (base sell value "
                     + n(f.getBaseSellValue()) + ", " + Math.round(sub.getTariff() * 100f) + "% tariff, " + dmods(f) + " d-mods); fitted weapons and wings go to cargo first. "
                     + "Send 'sellship " + q + (black ? " black" : "") + " confirm' to sell.";
+        if (blackLocked(sub) && !anyway) return "won't sell: " + blackLockedMsg(m) + " (or add 'anyway')";
         // strip weapons and wings into cargo, as a player would before selling
         ShipVariantAPI v = f.getVariant().clone();
         v.setSource(VariantSource.REFIT);

@@ -102,6 +102,7 @@ public final class Rules {
       + "hunt_recovery_pause = true    # stop at 'Consider ship recovery' so Claude can choose\n"
       + "hunt_auto_resupply = true     # resupply/repair automatically between targets\n"
       + "battle_auto_on_load = false   # true: auto-battle is on after every game load (else send 'battle auto on')\n"
+      + "black_market_with_transponder = false # 1.0.7: true lets buyship/autofit/sellship trade on a black market with the transponder on (costs standing)\n"
       + "battle_deploy =               # 1.0.7: default deploy list (auto | all | ship, ship); 'battle deploy ...' is also kept in the save\n"
       + "recover_api = false           # 'recover <ship>' through the game's recovery code (experimental, see README)\n"
       + "\n"
