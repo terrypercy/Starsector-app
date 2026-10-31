@@ -918,11 +918,15 @@ public final class Shipyard {
         String a = args.trim();
         FleetMemberAPI member = null; String wq = null;
         String[] w = a.split("\\s+");
-        for (int i = w.length - 1; i >= 1 && member == null; i--) {
+        // 1.0.8: the split whose head names a ship best ("Perfect Hatred" beats "Perfect Hatred Light Dual Machine")
+        int bestSc = 0;
+        for (int i = w.length - 1; i >= 1; i--) {
             StringBuilder head = new StringBuilder();
             for (int j = 0; j < i; j++) head.append(j == 0 ? "" : " ").append(w[j]);
             FleetMemberAPI f = findMember(head.toString());
-            if (f != null) { member = f; StringBuilder t = new StringBuilder(); for (int j = i; j < w.length; j++) t.append(j == i ? "" : " ").append(w[j]); wq = t.toString(); }
+            if (f == null) continue;
+            int sc = Math.max(score(head.toString(), f.getShipName()), score(head.toString(), f.getHullSpec().getHullName()));
+            if (sc > bestSc) { bestSc = sc; member = f; StringBuilder t = new StringBuilder(); for (int j = i; j < w.length; j++) t.append(j == i ? "" : " ").append(w[j]); wq = t.toString(); }
         }
         if (member == null) return "usage: unequip <ship> <weapon|all>";
         ShipVariantAPI v = member.getVariant().clone();
