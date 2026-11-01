@@ -204,6 +204,7 @@ public class BountyRunner implements EveryFrameScript {
             b.append(i).append(". ").append(t.kind.equals("person") ? "" : "[system] ").append(t.name).append(" | ").append(t.where)
              .append(" | ").append(String.format("%.1f", t.ly)).append(" ly");
             if (t.reward > 0) b.append(" | ").append(Shipyard.n(t.reward)).append(" cr");
+            if (t.faction != null && t.faction.length() > 0) b.append(" | posted by ").append(t.faction); // 1.0.8: who pays (and gives reputation)
             if (t.daysLeft > 0) b.append(" | ").append(Math.round(t.daysLeft)).append(" days left");
             if (t.eta > 0) b.append(" | ~").append(Math.round(t.eta)).append(" days away");
             b.append(" | target ").append(Math.round(t.theirDP)).append(" DP | ").append(t.ok ? "OK" : "skip: " + t.why).append("\n");
