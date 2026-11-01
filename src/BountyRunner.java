@@ -57,6 +57,7 @@ public class BountyRunner implements EveryFrameScript {
     private int clicks = 0;
     private SectorEntityToken restAt;
     private boolean recoveryShown = false;
+    private boolean departChecked = false; // 1.0.8: round trip verified before the fleet leaves
     private Phase pausedFrom = Phase.IDLE;
     private float bestDistLY = Float.MAX_VALUE;
     /** Sub-goals run inside a hunt: resupply/repair between targets, exploration detours. */
@@ -363,9 +364,10 @@ public class BountyRunner implements EveryFrameScript {
         bestDistLY = Float.MAX_VALUE;
         bestDistTs = 0L;
         recoveryShown = false;
+        departChecked = false;
         report.setLength(0);
         report.append("#hunt ").append(t.name).append(" in ").append(t.where).append("\n");
-        String low = logisticsProblem(t, Rules.f("hunt_min_supply_days", 30f));
+        String low = logisticsProblem(t, tripSupplyDays(t));
         if (low != null) {
             if (Rules.b("hunt_auto_resupply", true)) { startSub(new Goals.Resupply(Rules.f("resupply_days", 60f)), Phase.TRAVEL, low + ": resupplying first"); return; }
             pause(low + " - resupply before hunting"); return;
@@ -387,6 +389,13 @@ public class BountyRunner implements EveryFrameScript {
     }
 
     static float supplyDays() { return pf().getCargo().getSupplies() / suppliesPerDay(); }
+
+    /** 1.0.8: supply days a hunt needs: there and back at twice the game's ETA (storms, deep hyperspace have
+     *  doubled real trips), plus CR recovery after the fight; never less than hunt_min_supply_days. */
+    static float tripSupplyDays(Target t) {
+        float eta = t == null ? 0f : Math.max(0f, t.eta);
+        return Math.max(Rules.f("hunt_min_supply_days", 30f), eta * 2f * Rules.f("hunt_eta_factor", 2f) + Rules.f("hunt_battle_supply_days", 20f));
+    }
 
     /** Null when supplies and fuel cover the trip; otherwise the reason not to go. */
     static String logisticsProblem(Target t, float minDays) {
@@ -412,6 +421,18 @@ public class BountyRunner implements EveryFrameScript {
         note = why;
         phaseStartTs = sector().getClock().getTimestamp();
         log(why);
+        if (p == Phase.TRAVEL && target != null && !departChecked) {
+            // 1.0.8: re-check after the restock and never leave short. Live play: the market ran out of fuel, the hunt
+            // left with 1,200 of ~1,774 needed and got stranded short of the target; that had to be reloaded.
+            String low = logisticsProblem(target, tripSupplyDays(target));
+            if (low != null) {
+                phase = p; // so pause() records where to resume
+                pause("NOT READY to leave for " + target.name + ": " + low + " after restocking here - top up at another market ('prices fuel'), then 'hunt resume'");
+                EventLog.alert("hunt", "won't depart: " + low);
+                return;
+            }
+            departChecked = true;
+        }
         if (p == Phase.TRAVEL && target != null && target.fleet != null) {
             sector().layInCourseFor(target.fleet);
             Governor.unpause();
