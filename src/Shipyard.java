@@ -1097,6 +1097,26 @@ public final class Shipyard {
         return off.getPerson().getNameString() + " now commands " + ship.getShipName();
     }
 
+    /** 1.0.8: 'flagship <ship>' - you take command of that ship; its officer (if any) is left without a ship. */
+    static String flagship(String args) {
+        FleetMemberAPI ship = findMember(args == null ? "" : args.trim());
+        if (ship == null) return "no ship matching '" + args + "' (see 'fleet')";
+        if (ship.isFlagship()) return ship.getShipName() + " is already your flagship";
+        if (civilian(ship)) return ship.getShipName() + " is civilian; pick a combat ship";
+        if (ship.isMothballed()) return ship.getShipName() + " is mothballed; 'activate' it first";
+        FleetMemberAPI old = null;
+        for (FleetMemberAPI f : pf().getFleetData().getMembersListCopy()) if (f.isFlagship()) old = f;
+        String bumped = "";
+        if (ship.getCaptain() != null && !ship.getCaptain().isDefault() && !ship.getCaptain().isPlayer())
+            bumped = "; " + ship.getCaptain().getNameString() + " is now without a ship ('assign' them)";
+        if (old != null) old.setCaptain(null);
+        ship.setCaptain(Global.getSector().getPlayerPerson());
+        pf().getFleetData().setFlagship(ship);
+        pf().getFleetData().ensureHasFlagship();
+        return "you now command " + ship.getShipName() + " (" + ship.getHullSpec().getHullName() + ")"
+                + (old != null ? "; " + old.getShipName() + " has no captain" : "") + bumped;
+    }
+
     static String autoAssign() {
         CoreAutofitPlugin plugin = new CoreAutofitPlugin(Global.getSector().getPlayerPerson());
         plugin.setRandom(new java.util.Random());

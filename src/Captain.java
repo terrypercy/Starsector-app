@@ -471,6 +471,7 @@ public class Captain implements EveryFrameScript {
         if (c.equals("buyweapon")) return Shipyard.buyWeapon(a);
         if (c.equals("autofit")) return Shipyard.autofit(a);
         if (c.equals("assign")) return Shipyard.assign(a);
+        if (c.equals("flagship")) return Shipyard.flagship(a);
         if (c.equals("autoassign")) return Shipyard.autoAssign();
         if (c.equals("restore")) return Shipyard.restore(a);
         // 1.0.7
