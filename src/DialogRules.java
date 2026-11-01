@@ -52,7 +52,7 @@ public final class DialogRules {
       + "\n"
       + "# --- exploration: salvage, debris, derelicts, surveys\n"
       + "explore : match opts=\\[[^\\]]*(Engage the|Attack the|automated defen) -> choose ^(Leave|Move away|Withdraw)\n"
-      + "explore : match type=(salvage|debris|station|derelict) -> choose ^(Assess the salvage|Begin salvage operations|Perform a salvage operation|Salvage|Search the debris|Take the cargo|Pick through)\n"
+      + "explore : match type=(salvage|debris|station|derelict) -> choose ^(Explore$|Assess$|Assess the|Begin salvage operations|Perform a salvage operation|Salvage|Search the debris|Take the cargo|Pick through)\n"
       + "explore : match type=planet -> choose ^(Run a survey|Conduct a survey|Survey|Take a closer look)\n"
       + "explore : match .* -> choose ^(Continue|Leave)$\n"
       + "\n"

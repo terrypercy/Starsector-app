@@ -232,6 +232,15 @@ public class CaptainTest {
         List<String> travel = Arrays.asList("travel");
         List<String> hunt = Arrays.asList("hunt", "travel");
 
+        // 1.0.9: live play - the hunt detoured to two derelict ships and left without salvaging; the game's button is "Explore"
+        List<String> exploreCtx = Arrays.asList("explore", "hunt");
+        List<DialogRules.Opt> wreck = opts("Explore", "Leave");
+        check("Explore".equals(chosen(r, exploreCtx, sig("derelict", "useful=no", wreck), wreck)), "derelict: explore it, don't leave");
+        List<DialogRules.Opt> debris = opts("Assess", "Leave");
+        check("Assess".equals(chosen(r, exploreCtx, sig("debris", "useful=no", debris), debris)), "debris field: assess it");
+        List<DialogRules.Opt> gs = opts("Assess the ship's salvage value", "Leave");
+        check("Assess the ship's salvage value".equals(chosen(r, exploreCtx, sig("derelict", "useful=no", gs), gs)), "special wreck: assess salvage value");
+
         List<DialogRules.Opt> jump = opts("Order a jump to Askonia", "Leave");
         check("Order a jump to Askonia".equals(chosen(r, travel, sig("jump", "useful=yes", jump), jump)), "useful jump point: jump");
         check("Leave".equals(chosen(r, travel, sig("jump", "useful=no", jump), jump)), "jump point off the route: leave");
