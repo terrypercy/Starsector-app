@@ -476,5 +476,12 @@ public class CaptainTest {
         String d = Rules.diff(a, z);
         check(d.contains("keep: metals:50 -> none") && d.contains("x: 1 -> (removed)") && d.contains("y: (unset) -> 2"), "rules diff: " + d);
         check(Rules.diff(a, new HashMap<String, String>(a)).isEmpty(), "rules diff: no change");
+        List<String> avris = Arrays.asList("ruins_vast", "ore_rich", "no_atmosphere", "hot");
+        List<String> crom = Arrays.asList("thin_atmosphere", "decivilized", "rare_ore_moderate", "ore_moderate", "ruins_scattered", "hot");
+        check(near(ColonyMath.resourceScore(avris), 8f), "colony score: vast ruins + rich ore = 8");
+        check(near(ColonyMath.resourceScore(crom), 6f), "colony score: rare ore x1.5 + ore + ruins = 6");
+        check(ColonyMath.resources(Arrays.asList("hot", "no_atmosphere")).equals("no deposits"), "colony: no deposits");
+        check(ColonyMath.rank(8f, 175f) > ColonyMath.rank(6f, 175f), "colony rank: more resources first");
+        check(ColonyMath.rank(8f, 150f) > ColonyMath.rank(8f, 250f), "colony rank: lower hazard first");
     }
 }

@@ -32,6 +32,7 @@ public class CaptainModPlugin extends BaseModPlugin {
         BountyRunner.install();
         CaptainHud.install();
         LootTracker.register();
+        Progress.install(); // 1.0.9: story/character/colony status from the game's own records
         BountyGuard.install(); // 1.0.9: alerts when a bounty the fleet killed ends unpaid (never pays)
         BattleConfig.load(); // 1.0.7: deploy list, auto and margin come back with the save
         EventLog.info("mod", "campaign loaded; battle deploy " + BattleConfig.deploy + (BattleConfig.auto ? " (auto-battle on)" : "") + "; " + (Governor.armed ? "Claude in control (paused until 'run')" : "player in control until the first inbox batch"));

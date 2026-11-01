@@ -17,7 +17,7 @@ final class Help {
       + "  loop <n> | trade loop <n> | ask <question> | <option> | ...\n"
       + "  cancel | resume | hunt stop|status|resume | loop stop\n"
       + "TALK / DIALOGS\n"
-      + "  preflight <bounty|market> (GO/NO-GO before leaving) | halt (stop everything) | dialog | dialog close (stuck dialog) | choose <number|text> | talk|contact [person] | loot | loot take|leave | recover [list|<n>]\n"
+      + "  progress (story, skills, colonies) | colony sites | preflight <bounty|market> (GO/NO-GO before leaving) | halt (stop everything) | dialog | dialog close (stuck dialog) | choose <number|text> | talk|contact [person] | loot | loot take|leave | recover [list|<n>]\n"
       + "  commission (standing report) | rep (standing report) | explore list\n"
       + "TRADE / SHIPYARD (Trade Runner)\n"
       + "  plan | bounties | fleet | ships | weapons [filter] | find <words> [for <ship>] | buyship <n|name> | buyspec <hullmod> | buyweapon <name> [qty]\n"
