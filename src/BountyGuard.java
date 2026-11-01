@@ -150,4 +150,19 @@ public class BountyGuard extends BaseCampaignEventListener implements EveryFrame
         EventLog.alert("bounty", "PAID (manual): " + s);
         return s;
     }
+
+    /** 'cheat credits <amount> <reason>': the player asked for it; logged loudly so it is never silent. */
+    static String cheatCredits(String a) throws CommandException {
+        String t = a == null ? "" : a.trim();
+        String[] p = t.split("\\s+", 2);
+        int n;
+        try { n = Integer.parseInt(p[0].replace(",", "")); } catch (Throwable e) { throw new CommandException("usage: cheat credits <amount> <reason>"); }
+        if (n <= 0 || n > 1000000) throw new CommandException("amount must be 1..1,000,000");
+        String why = p.length > 1 ? p[1] : "no reason given";
+        Global.getSector().getPlayerFleet().getCargo().getCredits().add(n);
+        String s = "CHEAT: added " + Shipyard.n(n) + " cr (" + why + ")";
+        EventLog.alert("cheat", s);
+        Global.getLogger(BountyGuard.class).info("Claude Captain " + s);
+        return s;
+    }
 }

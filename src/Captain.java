@@ -464,6 +464,7 @@ public class Captain implements EveryFrameScript {
         if (c.equals("weapons")) return Shipyard.weapons(a);
         if (c.equals("find")) return Shipyard.find(a);
         if (c.equals("officers")) return Goals.officersForHire();
+        if (c.equals("cheat")) { if (a != null && a.trim().toLowerCase().startsWith("credits ")) return BountyGuard.cheatCredits(a.trim().substring(8)); throw new CommandException("usage: cheat credits <amount> <reason>"); }
         if (c.equals("bounty")) { if (a != null && a.trim().toLowerCase().startsWith("pay ")) return BountyGuard.payManual(a.trim().substring(4)); return BountyRunner.result(a); }
         if (c.equals("buyship")) return Shipyard.buyShip(a);
         if (c.equals("buyspec")) return Shipyard.buySpec(a);
