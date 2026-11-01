@@ -113,8 +113,13 @@ public class BountyRunner implements EveryFrameScript {
         if (f == null || f.getFleetData() == null) return 0f;
         float dp = 0f;
         for (FleetMemberAPI m : f.getFleetData().getMembersListCopy()) dp += m.getDeploymentPointsCost();
+        // 1.0.8: fleets far from the player may not be filled in yet (no members); their fleet points still say how big they are
+        if (dp <= 0f) try { dp = f.getFleetPoints(); } catch (Throwable ignored) {}
         return dp;
     }
+
+    static int lastSeen = 0, lastHostile = 0;
+    static float lastSmallest = 0f;
 
     // ------------------------------------------------------------------ listing
 
@@ -154,7 +159,8 @@ public class BountyRunner implements EveryFrameScript {
                 t.ly = Misc.getDistanceToPlayerLY(m.getPrimaryEntity());
                 t.fleet = weakestHostileIn(loc, ours / margin);
                 t.theirDP = t.fleet == null ? 0f : dpOf(t.fleet);
-                if (t.fleet == null) { t.ok = false; t.why = "no hostile fleet weak enough there right now"; }
+                if (t.fleet == null) { t.ok = false; t.why = "no hostile fleet weak enough there right now (" + lastHostile + " hostile of " + lastSeen + " fleets"
+                        + (lastHostile > 0 ? ", smallest " + Math.round(lastSmallest) + " DP" : "") + ")"; }
                 else judge(t, ours, margin, Rules.f("hunt_pirates_max_ly", 12f));
                 out.add(t);
             }
@@ -205,12 +211,19 @@ public class BountyRunner implements EveryFrameScript {
     static CampaignFleetAPI weakestHostileIn(LocationAPI loc, float maxDP) {
         CampaignFleetAPI best = null;
         float bestDP = Float.MAX_VALUE;
+        lastSeen = 0; lastHostile = 0; lastSmallest = 0f;
         if (loc == null) return null;
         for (CampaignFleetAPI f : loc.getFleets()) {
-            if (f == pf() || !f.isAlive() || !f.isHostileTo(pf()) || f.isStationMode()) continue;
-            if (!"pirates".equals(f.getFaction().getId()) && !f.getFaction().isHostileTo(pf().getFaction())) continue;
+            if (f == pf()) continue;
+            lastSeen++;
+            if (!f.isAlive() || f.isStationMode()) continue;
+            // 1.0.8: hostility by faction (isHostileTo(fleet) can be false for fleets not near the player)
+            if (!f.getFaction().isHostileTo(pf().getFaction()) && !f.isHostileTo(pf())) continue;
             float dp = dpOf(f);
-            if (dp <= 0f || dp > maxDP) continue;
+            if (dp <= 0f) continue;
+            lastHostile++;
+            if (lastSmallest == 0f || dp < lastSmallest) lastSmallest = dp;
+            if (dp > maxDP) continue;
             if (dp < bestDP) { bestDP = dp; best = f; }
         }
         return best;
