@@ -70,6 +70,9 @@ public final class Explorer {
                     boolean unsurveyed = m.getSurveyLevel() != MarketAPI.SurveyLevel.FULL;
                     boolean ruins = isRuins(m);
                     if (!unsurveyed && !ruins) continue;
+                    // 1.0.8: the survey screen is a custom panel the mod can't drive yet (it left a dialog stuck with no
+                    // options twice), so planets that still need surveying are skipped unless explore_survey = true
+                    if (unsurveyed && !Rules.b("explore_survey", false)) continue;
                     s = new ExploreMath.Site(e.getId(), e.getName(), ruins ? "ruins" : "planet_unsurveyed", e.getLocation().x, e.getLocation().y);
                     s.survey = unsurveyed;
                     s.ruins = ruins;

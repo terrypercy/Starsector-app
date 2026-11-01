@@ -443,6 +443,13 @@ public class Captain implements EveryFrameScript {
             DialogRules r = DialogAgent.rules();
             return "dialog_rules.txt: " + r.rules.size() + " rules" + (r.errors.isEmpty() ? "" : ", errors:\n" + DialogAgent.join(r.errors, "\n")) + "\ncaptain_rules.txt: " + Rules.dump();
         }
+        if (c.equals("dialog") && a.equalsIgnoreCase("close")) { // 1.0.8: a dialog stuck with no options (e.g. the survey screen)
+            InteractionDialogAPI d = sector().getCampaignUI().getCurrentInteractionDialog();
+            if (d == null) throw new CommandException("no dialog is open");
+            String who = d.getInteractionTarget() == null ? "dialog" : d.getInteractionTarget().getName();
+            d.dismiss();
+            return "closed the dialog with " + who;
+        }
         if (c.equals("dialog") && a.equalsIgnoreCase("sig")) {
             InteractionDialogAPI d = sector().getCampaignUI().getCurrentInteractionDialog();
             if (d == null) throw new CommandException("no dialog is open");
