@@ -1157,12 +1157,19 @@ public final class Shipyard {
         MarketAPI m = docked(err, mode);
         if (m == null) return err[0];
         List<String> words = new ArrayList<String>();
-        boolean confirm = false, black = false, anyway = false;
+        boolean confirm = false, black = false, anyway = false, forceOpen = false;
         for (String w : args.trim().split("\\s+")) {
             if (w.equalsIgnoreCase("confirm")) confirm = true;
             else if (w.equalsIgnoreCase("black")) black = true;
+            else if (w.equalsIgnoreCase("open")) forceOpen = true;
             else if (w.equalsIgnoreCase("anyway")) anyway = true;
             else words.add(w);
+        }
+        // 1.0.8: like sellweapons, default to the market with the lower tariff (usually the black market) when allowed
+        if (!black && !forceOpen) {
+            SubmarketAPI bm = m.getSubmarket(Submarkets.SUBMARKET_BLACK);
+            SubmarketAPI om = mode[0] == CoreUITradeMode.OPEN ? m.getSubmarket(Submarkets.SUBMARKET_OPEN) : null;
+            if (bm != null && !blackLocked(bm) && (om == null || bm.getTariff() < om.getTariff())) black = true;
         }
         StringBuilder q = new StringBuilder();
         for (String w : words) q.append(q.length() == 0 ? "" : " ").append(w);
