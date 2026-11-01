@@ -464,6 +464,7 @@ public class Captain implements EveryFrameScript {
         if (c.equals("weapons")) return Shipyard.weapons(a);
         if (c.equals("find")) return Shipyard.find(a);
         if (c.equals("officers")) return Goals.officersForHire();
+        if (c.equals("bounty")) return BountyRunner.result(a);
         if (c.equals("buyship")) return Shipyard.buyShip(a);
         if (c.equals("buyspec")) return Shipyard.buySpec(a);
         if (c.equals("buyweapon")) return Shipyard.buyWeapon(a);

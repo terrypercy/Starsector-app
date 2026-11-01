@@ -137,6 +137,28 @@ public class BountyRunner implements EveryFrameScript {
             judge(t, ours, margin, maxLy);
             out.add(t);
         }
+        // 1.0.8: pirate (and Pather) home systems: fleets there pay the commission's per-kill bonus even with no bounty
+        if (Rules.b("hunt_pirates", true)) {
+            java.util.Set<LocationAPI> seen = new java.util.HashSet<LocationAPI>();
+            for (MarketAPI m : sector().getEconomy().getMarketsCopy()) {
+                if (m.isHidden() || m.getStarSystem() == null || m.getPrimaryEntity() == null) continue;
+                String fid = m.getFaction().getId();
+                if (!"pirates".equals(fid) && !"luddic_path".equals(fid)) continue;
+                if (!m.getFaction().isHostileTo(pf().getFaction())) continue;
+                LocationAPI loc = m.getStarSystem();
+                if (!seen.add(loc)) continue;
+                Target t = new Target();
+                t.kind = "pirate"; t.loc = loc; t.where = loc.getName();
+                t.name = m.getFaction().getDisplayName() + " fleets near " + m.getName();
+                t.faction = m.getFaction().getDisplayName();
+                t.ly = Misc.getDistanceToPlayerLY(m.getPrimaryEntity());
+                t.fleet = weakestHostileIn(loc, ours / margin);
+                t.theirDP = t.fleet == null ? 0f : dpOf(t.fleet);
+                if (t.fleet == null) { t.ok = false; t.why = "no hostile fleet weak enough there right now"; }
+                else judge(t, ours, margin, Rules.f("hunt_pirates_max_ly", 12f));
+                out.add(t);
+            }
+        }
         for (IntelInfoPlugin i : sector().getIntelManager().getIntel(SystemBountyIntel.class)) {
             SystemBountyIntel b = (SystemBountyIntel) i;
             if (b.isEnded() || b.isEnding() || b.getMarket() == null || b.getMarket().getStarSystem() == null) continue;
@@ -194,19 +216,63 @@ public class BountyRunner implements EveryFrameScript {
         return best;
     }
 
+    /** 1.0.8: "bounty <name>": what happened to a person bounty, ended ones included (result, payment, target ship). */
+    static String resultText(PersonBountyIntel b) {
+        String who = b.getPerson() == null ? b.getName() : b.getPerson().getNameString();
+        StringBuilder s = new StringBuilder(who).append(": ");
+        PersonBountyIntel.BountyResult r = b.getResult();
+        if (r == null) s.append(b.isEnded() || b.isEnding() ? "ended, no result recorded" : "still active");
+        else {
+            switch (r.type) {
+                case END_PLAYER_BOUNTY: s.append("paid ").append(Shipyard.n(r.payment)).append(" cr (you destroyed the target)"); break;
+                case END_PLAYER_NO_BOUNTY: s.append("NOT paid: you destroyed the target, but the bounty pays nothing to you (no standing with the poster?)"); break;
+                case END_PLAYER_NO_REWARD: s.append("NOT paid: you destroyed the target but got no reward"); break;
+                case END_OTHER: s.append("NOT paid: someone else got the target, or its fleet despawned"); break;
+                case END_TIME: s.append("NOT paid: expired"); break;
+                default: s.append(r.type);
+            }
+            if (r.rep != null) try { s.append("; standing change ").append(Math.round(r.rep.delta * 100f)); } catch (Throwable ignored) {}
+        }
+        try { if (b.getFactionForUIColors() != null) s.append(" | posted by ").append(b.getFactionForUIColors().getDisplayName()); } catch (Throwable ignored) {}
+        s.append(" | reward ").append(Shipyard.n(b.getBountyCredits())).append(" cr");
+        try {
+            com.fs.starfarer.api.fleet.FleetMemberAPI fs = b.getFlagship();
+            CampaignFleetAPI f = b.getFleet();
+            boolean alive = fs != null && f != null && f.isAlive() && f.getFleetData().getMembersListCopy().contains(fs);
+            if (fs != null) s.append(" | target ship ").append(fs.getShipName()).append(" (").append(fs.getHullSpec().getHullName()).append(") ").append(alive ? "STILL ALIVE" : "gone");
+        } catch (Throwable ignored) {}
+        return s.toString();
+    }
+
+    static String result(String q) {
+        String key = q == null ? "" : q.trim().toLowerCase(java.util.Locale.ROOT);
+        StringBuilder b = new StringBuilder();
+        for (IntelInfoPlugin i : sector().getIntelManager().getIntel(PersonBountyIntel.class)) {
+            PersonBountyIntel p = (PersonBountyIntel) i;
+            String who = p.getPerson() == null ? p.getName() : p.getPerson().getNameString();
+            if (key.length() > 0 && (who == null || !who.toLowerCase(java.util.Locale.ROOT).contains(key))) continue;
+            b.append(resultText(p)).append("\n");
+        }
+        return b.length() == 0 ? "no person bounty matching '" + q + "' in the intel (ended ones drop off after a while)" : b.toString().trim();
+    }
+
     static String list() {
         List<Target> ts = targets();
         StringBuilder b = new StringBuilder("bounties (our combat strength " + Math.round(ourDP()) + " DP, lowest CR "
                 + Math.round(lowestCombatCR() * 100f) + "%, margin " + Rules.f("hunt_margin", 1.5f) + "x)\n");
+        // 1.0.8: how many bounty targets share each system (stacking 2-3 in one trip pays best)
+        java.util.Map<LocationAPI, Integer> per = new java.util.HashMap<LocationAPI, Integer>();
+        for (Target t : ts) if (t.loc != null && t.fleet != null) per.put(t.loc, (per.containsKey(t.loc) ? per.get(t.loc) : 0) + 1);
         int i = 0;
         for (Target t : ts) {
             i++;
-            b.append(i).append(". ").append(t.kind.equals("person") ? "" : "[system] ").append(t.name).append(" | ").append(t.where)
+            b.append(i).append(". ").append(t.kind.equals("person") ? "" : t.kind.equals("pirate") ? "[pirates] " : "[system] ").append(t.name).append(" | ").append(t.where)
              .append(" | ").append(String.format("%.1f", t.ly)).append(" ly");
             if (t.reward > 0) b.append(" | ").append(Shipyard.n(t.reward)).append(" cr");
             if (t.faction != null && t.faction.length() > 0) b.append(" | posted by ").append(t.faction); // 1.0.8: who pays (and gives reputation)
             if (t.daysLeft > 0) b.append(" | ").append(Math.round(t.daysLeft)).append(" days left");
             if (t.eta > 0) b.append(" | ~").append(Math.round(t.eta)).append(" days away");
+            if (t.loc != null && per.containsKey(t.loc) && per.get(t.loc) > 1) b.append(" | ").append(per.get(t.loc)).append(" targets in this system");
             b.append(" | target ").append(Math.round(t.theirDP)).append(" DP | ").append(t.ok ? "OK" : "skip: " + t.why).append("\n");
         }
         if (i == 0) b.append("(no bounties known - visit markets and check the intel screen)\n");
@@ -252,10 +318,16 @@ public class BountyRunner implements EveryFrameScript {
     }
 
     static Target best(List<Target> ts) {
+        Target b1 = best(ts, false);
+        return b1 != null ? b1 : best(ts, true); // 1.0.8: pirate fleets only when no bounty is worth it
+    }
+
+    static Target best(List<Target> ts, boolean pirates) {
         Target best = null;
         float bestScore = 0f;
         for (Target t : ts) {
             if (!t.ok) continue;
+            if (pirates != "pirate".equals(t.kind)) continue;
             float score = (t.reward > 0 ? t.reward : 5000f) / (2f + t.ly * 1.5f);
             if (score > bestScore) { bestScore = score; best = t; }
         }
@@ -545,6 +617,14 @@ public class BountyRunner implements EveryFrameScript {
             return;
         }
         String res = target.person != null && target.person.getResult() != null ? String.valueOf(target.person.getResult().type) : "fleet gone";
+        // 1.0.8: say plainly whether the bounty paid, and alert when it didn't
+        if (target.person != null) {
+            String r = resultText(target.person);
+            if (target.person.getResult() != null && target.person.getResult().type == PersonBountyIntel.BountyResultType.END_PLAYER_BOUNTY)
+                EventLog.info("bounty", "PAID: " + r);
+            else EventLog.alert("bounty", "NOT PAID: " + r);
+            res = r;
+        }
         log("bounty result: " + res + "; combat readiness " + Math.round(lowestCombatCR() * 100f) + "%");
         huntsLeft--;
         if (lowestCombatCR() < Rules.f("hunt_rest_cr", 0.7f)) { setPhase(Phase.REST, "resting to repair"); return; }

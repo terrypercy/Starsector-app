@@ -1366,14 +1366,22 @@ public final class Shipyard {
         CoreUITradeMode[] mode = new CoreUITradeMode[1];
         MarketAPI m = docked(err, mode);
         if (m == null) return err[0];
-        boolean confirm = false, black = false;
+        boolean confirm = false, black = false, forceOpen = false;
         StringBuilder q = new StringBuilder();
         for (String w : (args == null ? "" : args.trim()).split("\\s+")) {
             if (w.equalsIgnoreCase("confirm")) confirm = true;
             else if (w.equalsIgnoreCase("black")) black = true;
+            else if (w.equalsIgnoreCase("open")) forceOpen = true;
             else if (w.length() > 0) q.append(q.length() == 0 ? "" : " ").append(w);
         }
         String key = q.length() == 0 ? "all" : q.toString();
+        // 1.0.8: unless told 'open' or 'black', sell where the tariff is lower (usually the black market, 0%),
+        // when that market is allowed right now (transponder rule)
+        if (!black && !forceOpen) {
+            SubmarketAPI bm = m.getSubmarket(Submarkets.SUBMARKET_BLACK);
+            SubmarketAPI om = mode[0] == CoreUITradeMode.OPEN ? m.getSubmarket(Submarkets.SUBMARKET_OPEN) : null;
+            if (bm != null && !blackLocked(bm) && (om == null || bm.getTariff() < om.getTariff())) black = true;
+        }
         SubmarketAPI sub = black ? m.getSubmarket(Submarkets.SUBMARKET_BLACK)
                 : (mode[0] == CoreUITradeMode.OPEN ? m.getSubmarket(Submarkets.SUBMARKET_OPEN) : null);
         if (sub == null) return black ? m.getName() + " has no black market" : m.getName() + "'s open market won't trade with you (try 'black')";
@@ -1402,7 +1410,7 @@ public final class Shipyard {
         }
         if (count == 0) return "no weapons or wings in cargo matching '" + key + "'" + (b.length() > 0 ? "\n" + b : "");
         if (!confirm) return "quote, " + sub.getNameOneLine() + " at " + m.getName() + " (" + Math.round(sub.getTariff() * 100f) + "% tariff): " + count + " items for about "
-                + n(total) + " cr\n" + b + "send 'sellweapons " + key + (black ? " black" : "") + " confirm' to sell";
+                + n(total) + " cr\n" + b + "send 'sellweapons " + key + (black ? " black" : " open") + " confirm' to sell";
         pf().getCargo().getCredits().add(total);
         tx.setCreditValue(total);
         report(m, sub, mode[0], tx);
