@@ -47,6 +47,8 @@ public class Captain implements EveryFrameScript {
     private InteractionDialogAPI expectedDialog, alertedDialog;
     private Object alertedBattle;
     private String askLine = null;
+    /** 1.0.9: the line waiting for the player's Yes, and the one line the player approved (runs once). */
+    private String pendingApproval = null, approvedLine = null;
     private long askStart = 0L, askTry = 0L;
     private final CommandRunner runner = new CommandRunner();
 
@@ -244,6 +246,27 @@ public class Captain implements EveryFrameScript {
     private void runLine(String line) {
         boolean optional = line.toLowerCase(Locale.ROOT).startsWith("optional ");
         String l = optional ? line.substring(9).trim() : line;
+        // 1.0.9: purchases of supplies/ships, ship sales, hiring, restoring and leaving short need the player's click
+        if (BatchMath.needsApproval(l) && !line.equals(approvedLine)) {
+            String detail = "";
+            try {
+                String low = l.toLowerCase(Locale.ROOT);
+                if (low.startsWith("sellship")) detail = "\n" + Shipyard.sellShip(l.substring(8).replaceAll("(?i)\\bconfirm\\b", "").trim());
+                else if (low.startsWith("resupply") || low.startsWith("buy")) detail = "\nsupplies " + Math.round(sector().getPlayerFleet().getCargo().getSupplies())
+                        + " aboard; price ceiling " + Math.round(Trader.ceiling("supplies")) + "/unit";
+            } catch (Throwable ignored) {}
+            List<String> yn = new ArrayList<String>();
+            yn.add("Yes, do it");
+            yn.add("No");
+            AskPopup.begin("Claude wants to: " + l + detail, yn);
+            askLine = "approve: " + line;
+            pendingApproval = line;
+            askStart = System.currentTimeMillis();
+            askTry = 0L;
+            EventLog.add(EventCore.CMD, "cmd", "> " + line + "\nwaiting for the player's Yes in the game (in-game popup)");
+            return;
+        }
+        if (line.equals(approvedLine)) approvedLine = null; // one use
         try {
             Goals.Goal g = goalFor(l);
             if (g != null) {
@@ -423,6 +446,7 @@ public class Captain implements EveryFrameScript {
             if (!queue.isEmpty()) { b.append(" dropped ").append(queue).append(";"); queue.clear(); }
             AskPopup.cancel();
             askLine = null;
+            pendingApproval = null; approvedLine = null;
             halted = true;
             Governor.arm("halt");
             Governor.stop("halt");
@@ -560,11 +584,18 @@ public class Captain implements EveryFrameScript {
             EventLog.add(EventCore.WARN, "ask", askLine + "\n" + (n == AskPopup.IN_CHAT ? "player chose to answer in the chat" : "answer " + n + ": " + text));
             AskPopup.cancel();
             askLine = null;
+            if (pendingApproval != null) {
+                String p = pendingApproval;
+                pendingApproval = null;
+                if (n == 1) { approvedLine = p; queue.add(0, p); EventLog.info("approve", "the player approved: " + p); }
+                else EventLog.alert("approve", "the player did NOT approve: " + p + " (not run)");
+            }
             return;
         }
         if (now - askTry >= 1000L) { askTry = now; AskPopup.tryShow(); }
         if (now - askStart > 30L * 60L * 1000L) {
             EventLog.warn("ask", askLine + "\nno answer after 30 minutes");
+            if (pendingApproval != null) { EventLog.alert("approve", "no answer: " + pendingApproval + " (not run)"); pendingApproval = null; }
             AskPopup.cancel();
             askLine = null;
         }

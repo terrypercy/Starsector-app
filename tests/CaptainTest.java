@@ -159,7 +159,12 @@ public class CaptainTest {
         check(BatchMath.INSTANT.equals(BatchMath.kind("hunt stop", false)), "hunt stop is instant");
         check(BatchMath.GOAL.equals(BatchMath.kind("hunt auto 3", false)), "hunt auto is a goal");
         check(BatchMath.GOAL.equals(BatchMath.kind("optional resupply", false)), "optional prefix is ignored");
-        check(BatchMath.INSTANT.equals(BatchMath.kind("buy supplies 20", true)), "buy is instant");
+        check(BatchMath.INSTANT.equals(BatchMath.kind("buy fuel 20", true)), "buy is instant");
+        check(BatchMath.GOAL.equals(BatchMath.kind("buy supplies 20", true)), "buy supplies waits for the player's approval (1.0.9)");
+        String[] need = {"resupply 60", "buy supplies 20 black", "optional sellship Umbra black confirm", "buyship Wyrm", "restore Wyrm", "buyspec hardened shields", "hire officer steady", "hunt resume anyway"};
+        for (String x : need) check(BatchMath.needsApproval(x), "needs approval: " + x);
+        String[] free = {"sellship Umbra", "buy fuel max", "hunt resume", "bounties", "preflight Morgan", "sell metals 100 black"};
+        for (String x : free) check(!BatchMath.needsApproval(x), "no approval: " + x);
         check(BatchMath.INSTANT.equals(BatchMath.kind("repair instant", true)), "repair instant is not the dockyard goal");
         // the 1.0.1 deadlock: goal paused, new batch = cancel + dock + instants
         java.util.List<java.util.List<String>> s = BatchMath.split(L("cancel", "run 2", "dock Tartessus", "storage put crew 388", "status"), true, false);

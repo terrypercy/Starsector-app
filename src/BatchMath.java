@@ -27,6 +27,7 @@ public final class BatchMath {
         if (t.isEmpty()) return INSTANT;
         String c = t.get(0);
         int n = t.size();
+        if (needsApproval(l)) return GOAL; // 1.0.9: waits its turn so the player's popup answer comes first
         if (c.equals("run")) return n > 2 && t.get(1).equals("trip") ? GOAL : GOV;
         if (c.equals("pause") || c.equals("unpause") || c.equals("control") || c.equals("hands") || c.equals("halt")) return GOV;
         if (c.equals("cancel") || c.equals("resume")) return NOW;
@@ -86,5 +87,23 @@ public final class BatchMath {
         if (since > last) return "#since " + since + " is past the last event #" + last;
         if (firstNotable > 0) return "unread warning/alert #" + firstNotable + " (batch cites #" + since + ")";
         return null;
+    }
+
+    /**
+     * 1.0.9: lines that only run after the player clicks Yes on an in-game popup (supplies, ships, big purchases,
+     * leaving short): the mod can't tell whether a "yes" in the chat was really the player's.
+     */
+    public static boolean needsApproval(String line) {
+        String l = line == null ? "" : line.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+        if (l.startsWith("optional ")) l = l.substring(9).trim();
+        List<String> t = CommandRunner.tokenize(l);
+        if (t.isEmpty()) return false;
+        String c = t.get(0);
+        if (c.equals("resupply")) return true;
+        if (c.equals("buy") && t.size() > 1 && t.get(1).startsWith("suppl")) return true;
+        if (c.equals("sellship") && t.contains("confirm")) return true;
+        if (c.equals("buyship") || c.equals("restore") || c.equals("buyspec") || c.equals("hire")) return true;
+        if (c.equals("hunt") && l.equals("hunt resume anyway")) return true;
+        return false;
     }
 }
