@@ -66,4 +66,25 @@ public final class BatchMath {
     static boolean isNum(String s) {
         try { Float.parseFloat(s); return true; } catch (NumberFormatException e) { return false; }
     }
+
+    /** 1.0.9: commands that only stop things; they always get through the #since gate. */
+    public static boolean stopOnly(String line) {
+        String l = line == null ? "" : line.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+        if (l.startsWith("optional ")) l = l.substring(9).trim();
+        return l.equals("pause") || l.equals("halt") || l.equals("cancel") || l.equals("hunt stop") || l.equals("loop stop");
+    }
+
+    /**
+     * 1.0.9: why a batch is refused, or null. since = the event the batch says Claude read (-1 = none given),
+     * last = the newest event, firstNotable = first WARN/ALERT after 'since' (-1 = none).
+     */
+    public static String gate(List<String> lines, long since, long last, long firstNotable) {
+        boolean stops = !lines.isEmpty();
+        for (String l : lines) if (!stopOnly(l)) stops = false;
+        if (stops) return null;
+        if (since < 0) return "no '#since <event>' line";
+        if (since > last) return "#since " + since + " is past the last event #" + last;
+        if (firstNotable > 0) return "unread warning/alert #" + firstNotable + " (batch cites #" + since + ")";
+        return null;
+    }
 }

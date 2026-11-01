@@ -82,7 +82,7 @@ public final class Rules {
       + "go_dark = independent_only    # never | independent_only | auto\n"
       + "auto_dialogs = true           # answer routine dialogs on the way (see dialog_rules.txt)\n"
       + "when_attacked = disengage     # disengage | pause\n"
-      + "keep_moving = true            # a running trip left paused 15 s with no dialog unpauses (still inside the run budget)\n"
+      + "keep_moving = false           # LOCKED: a paused trip is never unpaused by the mod (the player's pause wins)\n"
       + "fuel_reserve_ly = 10\n"
       + "supplies_days = 60\n"
       + "end_fuel_ly = 20\n"
@@ -120,6 +120,7 @@ public final class Rules {
       + "fuel_price_factor = 1.35      # fuel ceiling = median fuel price x this\n"
       + "max_supply_price = 0          # fixed ceiling instead of the market one (0 = follow the market)\n"
       + "max_fuel_price = 0\n"
+      + "emergency_price_factor = 2    # LOCKED: an emergency buy never pays more than this x the median price\n"
       + "emergency_fuel_ly = 10        # below this much fuel (or gov_min_supply_days of supplies) the ceiling is waived, with an alert\n"
       + "hunt_eta_factor = 2           # real trips take this many times the game's ETA (storms)\n"
       + "hunt_battle_supply_days = 20  # extra supply days a hunt keeps for CR recovery after the fight\n"
@@ -131,6 +132,16 @@ public final class Rules {
       + "hud_rep_faction = auto        # faction for the commission bar (auto = closest to Favorable)\n";
 
     private static final Map<String, String> vals = new HashMap<String, String>();
+    /**
+     * 1.0.9: guard rails the player set. Claude edits captain_rules.txt, so these are read from the built-in defaults
+     * only; a value in the file is ignored (and logged). Changing one takes a new build the player installs.
+     */
+    public static final java.util.Set<String> LOCKED = new java.util.HashSet<String>(java.util.Arrays.asList(
+            "allow_cheats", "recover_api", "require_since", "ask_before_supplies", "keep", "max_supply_price", "max_fuel_price",
+            "supply_price_factor", "fuel_price_factor", "emergency_fuel_ly", "keep_moving", "hunt_eta_factor", "hunt_battle_supply_days",
+            "emergency_price_factor"));
+    private static boolean testOverride = false;
+    private static final java.util.Set<String> lockedNoted = new java.util.HashSet<String>();
     private static final Map<String, String> defs = new HashMap<String, String>();
     private static long loadedAt = 0L;
 
@@ -151,8 +162,13 @@ public final class Rules {
             }
             Map<String, String> before = new HashMap<String, String>(vals);
             boolean first = before.isEmpty();
+            if (first) { // 1.0.9: compare with the copy seen last time, so edits made while the game was closed are logged too
+                try { if (s.fileExistsInCommon(Files.RULES_SEEN)) parseInto(s.readTextFileFromCommon(Files.RULES_SEEN), before); } catch (Throwable ignored) {}
+            }
             parse(text);
-            if (!first) logChanges(before, vals);
+            if (!before.isEmpty()) logChanges(before, vals);
+            try { s.writeTextFileToCommon(Files.RULES_SEEN, text); } catch (Throwable ignored) {}
+            noteLocked();
         } catch (Throwable t) {
             parse(DEFAULTS);
         }
@@ -177,6 +193,16 @@ public final class Rules {
         return b.toString().trim();
     }
 
+    /** Logs once per key when the file tries to set a locked key to something else. */
+    private static void noteLocked() {
+        for (String k : LOCKED) {
+            String v = vals.get(k), d = defs.get(k);
+            if (v == null || v.length() == 0 || v.equals(d) || lockedNoted.contains(k + "=" + v)) continue;
+            lockedNoted.add(k + "=" + v);
+            try { EventLog.warn("rules", "ignored '" + k + " = " + v + "' in captain_rules.txt: locked guard rail (built-in value " + (d == null ? "(code default)" : d) + ")"); } catch (Throwable ignored) {}
+        }
+    }
+
     static void parseInto(String text, Map<String, String> into) {
         into.clear();
         for (String raw : text.replace("\r", "").split("\n")) {
@@ -192,12 +218,15 @@ public final class Rules {
     static synchronized void parse(String text) { parseInto(text, vals); }
 
     /** For tests: use this text instead of the file. */
-    public static synchronized void useText(String text) { parse(text); loadedAt = Long.MAX_VALUE / 2; }
+    public static synchronized void useText(String text) { parse(text); loadedAt = Long.MAX_VALUE / 2; testOverride = true; }
 
     public static String s(String key, String def) {
         load();
         String v;
-        synchronized (Rules.class) { v = vals.get(key); if (v == null || v.length() == 0) v = defs.get(key); }
+        synchronized (Rules.class) {
+            v = LOCKED.contains(key) && !testOverride ? null : vals.get(key);
+            if (v == null || v.length() == 0) v = defs.get(key);
+        }
         return v == null || v.length() == 0 ? def : v;
     }
 

@@ -373,6 +373,7 @@ public class BountyRunner implements EveryFrameScript {
         departChecked = false;
         report.setLength(0);
         report.append("#hunt ").append(t.name).append(" in ").append(t.where).append("\n");
+        TripRunner.saveNow("hunting " + t.name); // 1.0.9: save before big actions
         String low = logisticsProblem(t, tripSupplyDays(t));
         if (low != null) {
             // 1.0.9: restock to what the departure check needs (fuel for the round trip; supplies are only quoted -
@@ -444,7 +445,8 @@ public class BountyRunner implements EveryFrameScript {
             String low = logisticsProblem(target, tripSupplyDays(target));
             if (low != null) {
                 phase = p; // so pause() records where to resume
-                pause("NOT READY to leave for " + target.name + ": " + low + " after restocking here - top up at another market ('prices fuel'), then 'hunt resume'");
+                pause("NOT READY to leave for " + target.name + ": " + low + " after restocking here. Fuel: 'prices fuel' and refuel elsewhere, then 'hunt resume'."
+                        + " Supplies: ask the player; after 'resupply <days>' start the hunt again ('bounties', 'hunt <n>'). Or 'hunt resume anyway' if the player decides to go short.");
                 EventLog.alert("hunt", "won't depart: " + low);
                 return;
             }
@@ -464,7 +466,7 @@ public class BountyRunner implements EveryFrameScript {
         log("PAUSED: " + why);
         msg("Bounty runner paused: " + why);
         EventLog.alert("hunt", "hunt paused: " + why + " ('hunt resume' / 'resume' when sorted)");
-        try { sector().setPaused(true); } catch (Throwable ignored) {}  // nothing drains while waiting for a decision
+        try { Governor.modPause(); } catch (Throwable ignored) {}  // nothing drains while waiting for a decision
         writeOut();
     }
 

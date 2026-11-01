@@ -129,8 +129,14 @@ public final class Trader {
         // 1.0.9: market-based ceiling for supplies/fuel; buy the part under it, never above unless the fleet is in danger
         float cap = ceiling(id);
         if (cap > 0f && cost / qty > cap) {
-            if (emergency(id)) {
-                EventLog.alert("trade", "EMERGENCY: buying " + name + " at " + n(cost / qty) + "/unit, over the market ceiling of " + n(cap) + " (fleet low)");
+            float hardCap = cap / Math.max(0.01f, Rules.f(("supplies".equals(id) ? "supply" : "fuel") + "_price_factor", 1.35f)) * Rules.f("emergency_price_factor", 2f);
+            if (emergency(id) && cost / qty <= hardCap) {
+                // only what keeps the fleet safe, never more than emergency_price_factor x the median
+                float eq = (float) Math.floor(Math.min(qty, emergencyQty(id)));
+                if (eq < 1f) { r.text = "won't buy " + name + ": over the ceiling and the emergency amount is already aboard"; return r; }
+                qty = eq;
+                cost = m.getSupplyPrice(id, qty, true) * (1f + tariff);
+                EventLog.alert("trade", "EMERGENCY: buying " + n(qty) + " " + name + " at " + n(cost / qty) + "/unit, over the market ceiling of " + n(cap) + " (fleet low)");
             } else {
                 for (int i = 0; i < 60 && qty > 1f && cost / qty > cap; i++) {
                     qty = (float) Math.floor(qty * 0.9f);
@@ -172,12 +178,28 @@ public final class Trader {
             for (MarketAPI x : Global.getSector().getEconomy().getMarketsCopy()) {
                 if (x.isHidden() || x.getPrimaryEntity() == null || x.getFaction().isHostileTo("player")) continue;
                 if (x.getCommodityData(id) == null) continue;
-                seen.add(x.getSupplyPrice(id, 1f, true));
+                // 1.0.9 (audit H4): the cheapest way to buy one unit there, tariff included, so it compares like with like
+                float base = x.getSupplyPrice(id, 1f, true);
+                float best = Float.MAX_VALUE;
+                com.fs.starfarer.api.campaign.econ.SubmarketAPI bm = x.getSubmarket("black_market"), om = x.getSubmarket("open_market");
+                if (bm != null) best = Math.min(best, base * (1f + bm.getTariff()));
+                if (om != null) best = Math.min(best, base * (1f + om.getTariff()));
+                if (best < Float.MAX_VALUE) seen.add(best);
             }
         } catch (Throwable ignored) {}
         float factor = Rules.f(sup ? "supply_price_factor" : "fuel_price_factor", 1.35f);
         float override = Rules.f(sup ? "max_supply_price" : "max_fuel_price", 0f);
         return Guard.ceiling(seen, factor, sup ? 150f : 50f, override, 5);
+    }
+
+    /** 1.0.9: units to buy in an emergency: supplies up to gov_min_supply_days + 5 days, fuel up to emergency_fuel_ly + 5 ly. */
+    static float emergencyQty(String id) {
+        try {
+            com.fs.starfarer.api.campaign.CampaignFleetAPI pf = Global.getSector().getPlayerFleet();
+            if ("supplies".equals(id)) return Math.max(0f, Governor.maintPerDay(pf) * (Rules.f("gov_min_supply_days", 15f) + 5f) - pf.getCargo().getSupplies());
+            if ("fuel".equals(id)) return Math.max(0f, pf.getLogistics().getFuelCostPerLightYear() * (Rules.f("emergency_fuel_ly", 10f) + 5f) - pf.getCargo().getFuel());
+        } catch (Throwable ignored) {}
+        return 0f;
     }
 
     /** 1.0.9: buying above the ceiling is still allowed when the fleet would otherwise be in danger. */

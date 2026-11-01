@@ -57,7 +57,7 @@ public class CommandRunner {
         if (cmd.equals("storage")) return storage(a);
         if (cmd.equals("say")) { Speech.say(join(a)); return "queued for speech"; }
         if (cmd.equals("shutup")) { Speech.stop(); return "speech stopped"; }
-        if (cmd.equals("pause")) { sector().setPaused(true); lastMessage = "Game paused"; return "paused"; }
+        if (cmd.equals("pause")) { Governor.modPause(); lastMessage = "Game paused"; return "paused"; }
         if (cmd.equals("unpause") || cmd.equals("resume")) { Governor.unpause(); lastMessage = "Game unpaused"; return "unpaused"; }
         if (cmd.equals("credits")) return credits(a);
         if (cmd.equals("cargo")) return cargoCmd(a);
@@ -789,7 +789,9 @@ public class CommandRunner {
         if (spec.isFuel()) space = c.getMaxFuel() - c.getFuel();
         else if (spec.isPersonnel()) space = c.getMaxPersonnel() - c.getTotalPersonnel();
         else space = (c.getMaxCapacity() - c.getSpaceUsed()) / Math.max(0.01f, spec.getCargoSpace());
-        float afford = unit > 0 ? c.getCredits().get() / unit : stock;
+        if (black && Shipyard.blackLocked(sub)) throw new CommandException("black market buying is off with the transponder on (rule black_market_with_transponder)"); // 1.0.9
+        float spendable = Math.max(0f, c.getCredits().get() - Rules.f("reserve_credits", 5000f)); // 1.0.9: keep the reserve
+        float afford = unit > 0 ? spendable / unit : stock;
         float qty = qtyStr.equals("max") || qtyStr.equals("all") ? Float.MAX_VALUE : (float) num(qtyStr);
         if (Float.isNaN(qty) || qty <= 0) throw new CommandException("usage: " + usage);
         float limit = Math.min(Math.min(stock, space), afford);
@@ -808,8 +810,13 @@ public class CommandRunner {
         // 1.0.9: the market-based price ceiling applies to explicit buys too
         float cap = Trader.ceiling(id);
         if (cap > 0f && cost / qty > cap) {
-            if (Trader.emergency(id)) EventLog.alert("trade", "EMERGENCY: buying " + cm.name + " at " + fmt(cost / qty) + "/unit, over the ceiling of " + fmt(cap));
-            else {
+            float hardCap = cap / Math.max(0.01f, Rules.f((id.equals("supplies") ? "supply" : "fuel") + "_price_factor", 1.35f)) * Rules.f("emergency_price_factor", 2f);
+            if (Trader.emergency(id) && cost / qty <= hardCap) {
+                float eq = (float) Math.floor(Math.min(qty, Trader.emergencyQty(id)));
+                if (eq < 1f) throw new CommandException(cm.name + " is over the ceiling here and the emergency amount is already aboard");
+                qty = eq; cost = market.getSupplyPrice(id, qty, true) * (1f + tariff);
+                EventLog.alert("trade", "EMERGENCY: buying " + fmt(qty) + " " + cm.name + " at " + fmt(cost / qty) + "/unit, over the ceiling of " + fmt(cap));
+            } else {
                 while (qty > 1 && cost / qty > cap) { qty = (float) Math.floor(qty * 0.9f); cost = market.getSupplyPrice(id, qty, true) * (1f + tariff); }
                 if (cost / qty > cap) throw new CommandException(cm.name + " costs " + fmt(cost / qty) + "/unit here, over the market ceiling of " + fmt(cap) + " (median x factor); not bought");
             }

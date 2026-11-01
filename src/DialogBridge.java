@@ -61,7 +61,7 @@ public final class DialogBridge {
         try {
             OoOO.o it = (OoOO.o) o.item;
             return it.ø00000 != null || it.Ò00000 != null;
-        } catch (Throwable t) { return false; }
+        } catch (Throwable t) { return true; } // 1.0.9 (audit M3): if it can't be read, treat it as needing the player
     }
 
     public static void click(InteractionDialogAPI d, Opt o) {

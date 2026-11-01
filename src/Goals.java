@@ -409,7 +409,7 @@ public final class Goals {
         }
 
         /** Buys supplies (maintenance x days + CR budget, credit-capped) and fuel, black market first. */
-        static String buy(MarketAPI m, float days) { return buy(m, days, 0f, true); }
+        static String buy(MarketAPI m, float days) { return buy(m, days, 0f, !Rules.b("ask_before_supplies", true)); }
 
         static String buy(MarketAPI m, float days, float fuelTarget, boolean buySupplies) {
             CampaignFleetAPI pf = pf();

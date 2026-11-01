@@ -8,6 +8,7 @@ public final class Files {
     public static final String EVENTS = DIR + "events.txt";
     public static final String RECENT = DIR + "recent.txt";
     public static final String STATE = DIR + "state.txt";
+    public static final String RULES_SEEN = DIR + "rules_seen.txt"; // 1.0.9: last rules file seen, for the change log
     public static final String STATUS = DIR + "status.txt";
     public static final String RULES = DIR + "captain_rules.txt";
     public static final String DIALOG_RULES = DIR + "dialog_rules.txt";

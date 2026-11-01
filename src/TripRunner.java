@@ -210,6 +210,18 @@ public class TripRunner implements EveryFrameScript {
         return "started " + t.title();
     }
 
+    /** 1.0.9: save before a big action (hunt, ship purchase or sale) the same way trips do. */
+    public static void saveNow(String why) {
+        String mode = Rules.s("save_before_run", "auto").toLowerCase();
+        if (mode.equals("off")) return;
+        boolean saved = false;
+        try {
+            CampaignUIAPI ui = sector().getCampaignUI();
+            if (mode.equals("main")) saved = ui.cmdSave(); else { ui.autosave(); saved = true; }
+        } catch (Throwable t) { log.warn("Claude Captain: save failed", t); }
+        EventLog.info("save", (saved ? "saved before " : "could not save before ") + why);
+    }
+
     private void save() {
         String mode = Rules.s("save_before_run", "auto").toLowerCase();
         if (mode.equals("off")) return;

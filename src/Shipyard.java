@@ -253,6 +253,7 @@ public final class Shipyard {
         if (price > credits - reserve) return "can't afford " + pick.getHullSpec().getHullName() + ": " + n(price) + " cr, you have "
                 + n(credits) + " and keep " + n(reserve) + " in reserve";
 
+        TripRunner.saveNow("buying " + pick.getHullSpec().getHullName() + " \"" + pick.getShipName() + "\""); // 1.0.9
         from.getCargo().getMothballedShips().removeFleetMember(pick);
         pf().getFleetData().addFleetMember(pick);
         // market stock is stored mothballed; the vanilla buy screen re-activates it, so do the same
@@ -1190,6 +1191,7 @@ public final class Shipyard {
                     + n(f.getBaseSellValue()) + ", " + Math.round(sub.getTariff() * 100f) + "% tariff, " + dmods(f) + " d-mods); fitted weapons and wings go to cargo first. "
                     + "Send 'sellship " + q + (black ? " black" : "") + " confirm' to sell.";
         if (blackLocked(sub) && !anyway) return "won't sell: " + blackLockedMsg(m) + " (or add 'anyway')";
+        TripRunner.saveNow("selling " + what); // 1.0.9: save before big actions
         // strip weapons and wings into cargo, as a player would before selling
         ShipVariantAPI v = f.getVariant().clone();
         v.setSource(VariantSource.REFIT);

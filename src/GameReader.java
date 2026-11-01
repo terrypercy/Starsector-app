@@ -215,7 +215,8 @@ public final class GameReader {
             if (spec == null || spec.isMeta() || spec.isNonEcon() || spec.isPersonnel() || skip(id)) continue;
             Planner.Good g = new Planner.Good(id, spec.getName(), spec.getCargoSpace(), spec.getBasePrice());
             g.fleetSupply = id.equals("supplies");
-            g.tradeable = !spec.isFuel() && !id.equals("fuel");
+            // 1.0.9 (audit H3): supplies are never trade cargo while the player wants to be asked before every supply buy
+            g.tradeable = !spec.isFuel() && !id.equals("fuel") && !(id.equals("supplies") && Rules.b("ask_before_supplies", true));
             sn.goods.put(id, g);
         }
 

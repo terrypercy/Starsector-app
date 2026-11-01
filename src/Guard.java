@@ -27,6 +27,7 @@ public final class Guard {
             if (x.isEmpty()) continue;
             int floor = Integer.MAX_VALUE;
             int c = x.lastIndexOf(':');
+            if (c < 0 && x.matches(".*\\s\\d+$")) c = x.lastIndexOf(' '); // 1.0.9: "metals 50" means metals:50
             if (c > 0) {
                 try { floor = Math.max(0, Integer.parseInt(x.substring(c + 1).trim())); } catch (NumberFormatException ignored) { floor = Integer.MAX_VALUE; }
                 x = x.substring(0, c).trim();

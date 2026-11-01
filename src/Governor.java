@@ -52,7 +52,37 @@ public final class Governor {
     }
 
     /** May the campaign run right now? */
-    public static boolean mayRun() { return !armed || budget.active(); }
+    public static boolean mayRun() { return !playerHold && (!armed || budget.active()); }
+
+    /** 1.0.9: the player paused the game; nothing in the mod unpauses until a new 'run' or the player unpauses. */
+    public static volatile boolean playerHold = false;
+    private static long modPauseTs = 0L;
+    private static boolean prevPaused = false;
+
+    /** Every pause the mod makes goes through here, so a pause it did NOT make is known to be the player's. */
+    public static void modPause() {
+        modPauseTs = System.currentTimeMillis();
+        try { sector().setPaused(true); } catch (Throwable ignored) {}
+    }
+
+    /** Called every frame: spots the player's own pause (Space) and holds it. */
+    static void watchPlayerPause() {
+        boolean paused = sector().isPaused();
+        long now = System.currentTimeMillis();
+        boolean dialog = false;
+        try { dialog = sector().getCampaignUI().getCurrentInteractionDialog() != null; } catch (Throwable ignored) {}
+        if (!prevPaused && paused && !dialog && now - modPauseTs > 1500L) {
+            if (!playerHold) {
+                playerHold = true;
+                budget.revoke();
+                pausedReason = "paused by the player";
+                EventLog.alert("gov", "the player paused the game: run budget revoked; the mod won't unpause until the player does or a new 'run' is given");
+            }
+        } else if (prevPaused && !paused && playerHold) {
+            playerHold = false; // the player unpaused
+        }
+        prevPaused = paused;
+    }
 
     /** Every place that used to unpause the game asks here first. */
     public static void unpause() {
@@ -76,6 +106,7 @@ public final class Governor {
     }
 
     public static String run(String args) {
+        playerHold = false; // 1.0.9: an explicit run lifts the player-pause hold
         Object[] p = GovMath.parseRun(args, Rules.f("gov_until_max_days", 60f));
         float days = (Float) p[0];
         String until = (String) p[1];
@@ -103,7 +134,7 @@ public final class Governor {
     public static void stop(String why) {
         budget.revoke();
         pausedReason = why;
-        try { if (sector().getCampaignUI().getCurrentInteractionDialog() == null) sector().setPaused(true); } catch (Throwable ignored) {}
+        try { if (sector().getCampaignUI().getCurrentInteractionDialog() == null) modPause(); } catch (Throwable ignored) {}
     }
 
     public static String chip() {
@@ -121,6 +152,7 @@ public final class Governor {
     // ------------------------------------------------------------------ per frame (from Captain)
 
     public static void tick() {
+        try { watchPlayerPause(); } catch (Throwable ignored) {}
         SectorAPI s = sector();
         CampaignFleetAPI pf = s.getPlayerFleet();
         if (pf == null) return;
@@ -152,7 +184,7 @@ public final class Governor {
 
         // enforcement: no budget, no time passing (dialogs and battles pause the game by themselves)
         if (armed && !budget.active() && d == null && pf.getBattle() == null && !s.isPaused()) {
-            s.setPaused(true);
+            modPause();
             if (!budgetNoted) { budgetNoted = true; if (pausedReason.length() == 0) pausedReason = "no run budget"; }
         }
         if (budget.active()) budgetNoted = false;
@@ -278,7 +310,7 @@ public final class Governor {
                 budget.revoke();
                 pausedReason = a.text;
                 EventLog.alert("gov", a.text + " - paused; acknowledge with 'run ...'");
-                try { if (sector().getCampaignUI().getCurrentInteractionDialog() == null) sector().setPaused(true); } catch (Throwable ignored) {}
+                try { if (sector().getCampaignUI().getCurrentInteractionDialog() == null) modPause(); } catch (Throwable ignored) {}
             } else {
                 EventLog.warn("gov", a.text + " (player in control: not paused)");
             }

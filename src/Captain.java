@@ -140,22 +140,20 @@ public class Captain implements EveryFrameScript {
                 lines.add(l);
             }
         }
+        // 1.0.9 (audit M2): 'halt' anywhere in a batch drops every other line
+        for (String l : lines) if (l.trim().equalsIgnoreCase("halt")) { lines.clear(); lines.add("halt"); break; }
         // 1.0.9: a batch must say which events Claude has read (#since <n>) and is refused while a warning or alert
         // after that is unread; 'pause' / 'halt' always get through
-        boolean safeOnly = !lines.isEmpty();
-        for (String l : lines) { String c0 = l.trim().toLowerCase(Locale.ROOT); if (!(c0.equals("pause") || c0.equals("halt"))) safeOnly = false; }
-        if (!safeOnly && Rules.b("require_since", true)) {
-            long unread = since < 0 ? -2L : EventLog.core.firstNotableAfter(since);
-            if (since < 0 || unread > 0) {
-                EventLog.alert("inbox", "batch " + id + " refused: " + (since < 0 ? "no '#since <event>' line" : "unread warning/alert #" + unread + " (batch cites #" + since + ")")
-                        + " - read 'events since' first");
-                return;
-            }
+        if (Rules.b("require_since", true)) {
+            long last = EventLog.core.lastSeq();
+            String why = BatchMath.gate(lines, since, last, since < 0 || since > last ? -1L : EventLog.core.firstNotableAfter(since));
+            if (why != null) { EventLog.alert("inbox", "batch " + id + " refused: " + why + " - read 'events since' first"); return; }
         }
         if (lastBatchId == null && s.fileExistsInCommon(Files.LAST_ID)) lastBatchId = s.readTextFileFromCommon(Files.LAST_ID).trim();
         if (id != null && id.equals(lastBatchId)) { EventLog.info("inbox", "batch " + id + " ignored: same #id as the last one"); return; }
         lastBatchId = id;
         if (id != null) s.writeTextFileToCommon(Files.LAST_ID, id);
+        if (!(lines.size() == 1 && lines.get(0).trim().equalsIgnoreCase("halt"))) halted = false;
         Governor.arm("batch " + (id == null ? "?" : id));
         startBatch(id, lines, null);
         continueOnError = coe;
@@ -424,15 +422,17 @@ public class Captain implements EveryFrameScript {
             if (!"idle".equals(BountyRunner.state)) b.append(" ").append(BountyRunner.hunt("stop")).append(";");
             if (!queue.isEmpty()) { b.append(" dropped ").append(queue).append(";"); queue.clear(); }
             AskPopup.cancel();
+            askLine = null;
+            halted = true;
             Governor.arm("halt");
             Governor.stop("halt");
-            try { sector().setPaused(true); } catch (Throwable ignored) {}
+            try { Governor.modPause(); } catch (Throwable ignored) {}
             EventLog.alert("halt", b.toString());
             return b.append(" game paused, Claude in control with no run budget").toString();
         }
         if (c.equals("control") || c.equals("hands")) {
             String w = a.toLowerCase(Locale.ROOT);
-            if (w.startsWith("player") || w.equals("on")) { Governor.disarm("command"); return "player in control: the governor only warns"; }
+            if (w.startsWith("player") || w.equals("on")) throw new CommandException("refused: only the player can take control (click the panel chip)"); // 1.0.9
             if (w.startsWith("claude") || w.equals("off")) { Governor.arm("command"); return "Claude in control: the game runs only inside a run budget"; }
             return "usage: control claude | control player";
         }
@@ -482,7 +482,17 @@ public class Captain implements EveryFrameScript {
             String who = d.getInteractionTarget() == null ? "dialog" : d.getInteractionTarget().getName();
             // 1.0.9: a battle dialog is finished the game's way (bounty, XP, reputation) before it closes;
             // a bare dismiss there is what left bounties unpaid
-            String fin = LootTracker.finishEncounter(d);
+            // 1.0.9 (audit H2): only a stuck dialog (no options) is closed, and a battle only once it is over -
+            // closing a live encounter from code would let the fleet leave a fight for free
+            if (!AutoDialog.options(d).isEmpty()) throw new CommandException("the dialog has options - answer it with 'choose <n>' instead");
+            String fin = null;
+            if (d.getPlugin() instanceof com.fs.starfarer.api.impl.campaign.FleetInteractionDialogPluginImpl) {
+                Object ctx = ((com.fs.starfarer.api.impl.campaign.FleetInteractionDialogPluginImpl) d.getPlugin()).getContext();
+                boolean over = ctx instanceof com.fs.starfarer.api.impl.campaign.FleetEncounterContext
+                        && ((com.fs.starfarer.api.impl.campaign.FleetEncounterContext) ctx).isBattleOver();
+                if (!over && sector().getPlayerFleet().getBattle() != null) throw new CommandException("the battle is not over - won't close it from code");
+                fin = LootTracker.finishEncounter(d);
+            }
             if (fin == null) d.dismiss();
             return "closed the dialog with " + who + (fin == null ? "" : " (" + fin + ")");
         }
@@ -562,8 +572,11 @@ public class Captain implements EveryFrameScript {
 
     // ------------------------------------------------------------------ dialogs and battles nobody planned
 
+    /** 1.0.9: after 'halt' the mod answers no dialogs until the next accepted batch. */
+    static volatile boolean halted = false;
+
     private void watchDialogs(long now) {
-        if (!Governor.armed) return;
+        if (!Governor.armed || halted) return;
         CampaignFleetAPI pf = sector().getPlayerFleet();
         if (pf == null) return;
         InteractionDialogAPI d = sector().getCampaignUI().getCurrentInteractionDialog();

@@ -483,5 +483,14 @@ public class CaptainTest {
         check(ColonyMath.resources(Arrays.asList("hot", "no_atmosphere")).equals("no deposits"), "colony: no deposits");
         check(ColonyMath.rank(8f, 175f) > ColonyMath.rank(6f, 175f), "colony rank: more resources first");
         check(ColonyMath.rank(8f, 150f) > ColonyMath.rank(8f, 250f), "colony rank: lower hazard first");
+        check(Guard.keepFloor("metals 50", "metals", "Metals") == 50, "keep: 'metals 50' typo form");
+        // inbox gate
+        List<String> go = Arrays.asList("go Hesperus");
+        check(BatchMath.gate(go, -1, 100, -1).contains("#since"), "gate: no since refused");
+        check(BatchMath.gate(go, 999999, 100, -1).contains("past the last"), "gate: future since refused (audit C3)");
+        check(BatchMath.gate(go, 90, 100, 95).contains("#95"), "gate: unread alert refused");
+        check(BatchMath.gate(go, 100, 100, -1) == null, "gate: all read -> ok");
+        check(BatchMath.gate(Arrays.asList("pause", "halt", "hunt stop", "cancel", "optional loop stop"), -1, 100, 50) == null, "gate: stop-only batches always pass");
+        check(BatchMath.gate(Arrays.asList("pause", "go Hesperus"), -1, 100, -1) != null, "gate: a stop plus a real command still needs #since");
     }
 }
