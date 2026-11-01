@@ -44,6 +44,7 @@ public final class Governor {
     static SectorAPI sector() { return Global.getSector(); }
 
     public static void reset() {
+        pauseSeen = false; playerHold = false;
         budget.revoke();
         armed = Rules.b("gov_arm_on_load", false);
         pausedReason = "";
@@ -57,7 +58,7 @@ public final class Governor {
     /** 1.0.9: the player paused the game; nothing in the mod unpauses until a new 'run' or the player unpauses. */
     public static volatile boolean playerHold = false;
     private static long modPauseTs = 0L;
-    private static boolean prevPaused = false;
+    private static boolean prevPaused = false, pauseSeen = false;
 
     /** Every pause the mod makes goes through here, so a pause it did NOT make is known to be the player's. */
     public static void modPause() {
@@ -69,6 +70,7 @@ public final class Governor {
     static void watchPlayerPause() {
         boolean paused = sector().isPaused();
         long now = System.currentTimeMillis();
+        if (!pauseSeen) { pauseSeen = true; prevPaused = paused; return; } // 1.0.9: a save loads paused - that's not the player
         boolean dialog = false;
         try { dialog = sector().getCampaignUI().getCurrentInteractionDialog() != null; } catch (Throwable ignored) {}
         if (!prevPaused && paused && !dialog && now - modPauseTs > 1500L) {

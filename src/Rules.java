@@ -115,6 +115,7 @@ public final class Rules {
       + "explore_skip_defended = true  # skip defended sites unless our DP covers the defenders x hunt_margin\n"
       + "explore_survey = false        # survey planets on the way (the survey screen can't be driven yet)\n"
       + "keep = metals:50, heavy machinery:50  # never sold below this many (a bare name keeps all of it)\n"
+      + "require_since = true          # LOCKED: Claude's batches cite the last event read ('#since <n>')\n"
       + "ask_before_supplies = true    # automatic restocks only quote supplies; buy with 'resupply <days>' after the player agrees\n"
       + "supply_price_factor = 1.35    # supplies ceiling = median price at friendly markets x this\n"
       + "fuel_price_factor = 1.35      # fuel ceiling = median fuel price x this\n"
