@@ -126,6 +126,13 @@ public final class Trader {
             cost = m.getSupplyPrice(id, qty, true) * (1f + tariff);
         }
         if (cost > limit || qty < 1f) { r.text = "can't afford " + name + " (" + n(cost) + " cr for " + n(qty) + ")"; return r; }
+        // 1.0.8: price ceiling for supplies and fuel (live play: 72k spent on supplies at 163-218/unit without a warning)
+        float cap = "supplies".equals(id) ? Rules.f("max_supply_price", 140f) : "fuel".equals(id) ? Rules.f("max_fuel_price", 45f) : 0f;
+        if (cap > 0f && cost / qty > cap) {
+            r.text = "won't buy " + name + " on the " + s.getNameOneLine() + ": " + n(cost / qty) + "/unit is over your ceiling of " + n(cap)
+                    + " (captain_rules max_" + ("fuel".equals(id) ? "fuel" : "supply") + "_price)";
+            return r;
+        }
 
         s.getCargo().removeCommodity(id, qty);
         pc.addCommodity(id, qty);
@@ -137,12 +144,26 @@ public final class Trader {
         return r;
     }
 
+    /** 1.0.8: the player's keep list (captain_rules: keep = metals, heavy machinery, ...). Nothing on it is ever sold by the mod. */
+    static boolean kept(String id, String name) {
+        String k = Rules.s("keep", "metals, heavy machinery").toLowerCase(java.util.Locale.ROOT);
+        if (k.trim().isEmpty()) return false;
+        for (String e : k.split(",")) {
+            String x = e.trim().replace('_', ' ');
+            if (x.isEmpty()) continue;
+            if ((id != null && id.toLowerCase(java.util.Locale.ROOT).replace('_', ' ').equals(x))
+                    || (name != null && name.toLowerCase(java.util.Locale.ROOT).equals(x))) return true;
+        }
+        return false;
+    }
+
     public static Result sell(MarketAPI m, boolean black, String id, float want, CoreUITradeMode mode) {
         Result r = new Result();
         String why = blocked(m, black, mode);
         CommoditySpecAPI spec = Global.getSector().getEconomy().getCommoditySpec(id);
         String name = spec == null ? id : spec.getName();
         if (why != null) { r.text = "can't sell " + name + ": " + why; return r; }
+        if (kept(id, name)) { r.text = "won't sell " + name + ": it is on your keep list (captain_rules: keep =)"; return r; }
         SubmarketAPI s = sub(m, black);
         if (s.getPlugin().isIllegalOnSubmarket(id, SubmarketPlugin.TransferAction.PLAYER_SELL)) { r.text = name + " can't be sold on the " + s.getNameOneLine(); return r; }
         refresh(s);

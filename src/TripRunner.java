@@ -285,6 +285,16 @@ public class TripRunner implements EveryFrameScript {
                 CampaignFleetAPI pf = pf();
                 if (pf.getContainingLocation() == target.getContainingLocation()) applyTransponder(s.stop, m);
                 if (!"running".equals(state)) return false;
+                // 1.0.8: never set off without the fuel to arrive with a margin (20% + 1 ly); the hunt checks the round trip
+                try {
+                    float ly = Misc.getDistanceToPlayerLY(target);
+                    float perLY = Math.max(0.1f, pf.getLogistics().getFuelCostPerLightYear());
+                    float need = TravelMath.fuel(ly * 1.2f + 1f, 2, perLY);
+                    if (ly > 0.5f && pf.getCargo().getFuel() < need) {
+                        pause("NOT READY: fuel " + Math.round(pf.getCargo().getFuel()) + " but reaching " + m.getName() + " (" + String.format("%.1f", ly) + " ly) needs about " + Math.round(need) + " - refuel first ('prices fuel')");
+                        return false;
+                    }
+                } catch (Throwable ignored) {}
                 try {
                     AbilityPlugin burn = pf.getAbility(Abilities.SUSTAINED_BURN);
                     AbilityPlugin dark = pf.getAbility(Abilities.GO_DARK);

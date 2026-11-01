@@ -191,6 +191,10 @@ public class ReaderTest {
         Trader.Result b5 = Trader.buy(ancyra, true, "metals", 30f, 100f, CoreUITradeMode.OPEN);
         check(b5.ok && b5.qty < 30f && -b5.credits <= 100f, "spend cap trims the quantity (" + b5.text + ")");
 
+        // 1.0.8 keep list: metals are kept by default, so the mod refuses to sell them
+        Trader.Result k1 = Trader.sell(ancyra, true, "metals", 1000f, CoreUITradeMode.OPEN);
+        check(!k1.ok && k1.text.contains("keep list"), "keep list blocks the sale (" + k1.text + ")");
+        Rules.useText("keep = none\n");
         float before = credits.get();
         Trader.Result s1 = Trader.sell(ancyra, true, "metals", 1000f, CoreUITradeMode.OPEN);
         check(s1.ok && near(s1.qty, 50f + b5.qty), "sells what is held, no more (" + s1.text + ")");

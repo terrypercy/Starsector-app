@@ -1424,6 +1424,7 @@ public final class Shipyard {
             String id = st.isWeaponStack() ? st.getWeaponSpecIfWeapon().getWeaponId() : st.getFighterWingSpecIfWing().getId();
             String name = st.getDisplayName();
             if (!key.equalsIgnoreCase("all") && Math.max(score(key, id), score(key, name)) < 60) continue;
+            if (Trader.kept(id, name)) { b.append(name).append(": on your keep list, not sold\n"); continue; }
             if (sub.getPlugin().isIllegalOnSubmarket(st, SubmarketPlugin.TransferAction.PLAYER_SELL)) { b.append(name).append(": can't be sold here\n"); continue; }
             int n = (int) Math.floor(st.getSize());
             if (n < 1) continue;
