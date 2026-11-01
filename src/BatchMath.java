@@ -28,7 +28,7 @@ public final class BatchMath {
         String c = t.get(0);
         int n = t.size();
         if (c.equals("run")) return n > 2 && t.get(1).equals("trip") ? GOAL : GOV;
-        if (c.equals("pause") || c.equals("unpause") || c.equals("control") || c.equals("hands")) return GOV;
+        if (c.equals("pause") || c.equals("unpause") || c.equals("control") || c.equals("hands") || c.equals("halt")) return GOV;
         if (c.equals("cancel") || c.equals("resume")) return NOW;
         if (c.equals("goto") || c.equals("travel") || c.equals("approach") || c.equals("wait") || c.equals("resupply")
                 || c.equals("hire") || c.equals("go") || c.equals("trip") || c.equals("runtrip") || c.equals("runsell") || c.equals("ask")) return GOAL;

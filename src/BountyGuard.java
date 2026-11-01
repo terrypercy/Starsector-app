@@ -8,10 +8,7 @@ import com.fs.starfarer.api.campaign.EngagementResultForFleetAPI;
 import com.fs.starfarer.api.campaign.comm.IntelInfoPlugin;
 import com.fs.starfarer.api.combat.EngagementResultAPI;
 import com.fs.starfarer.api.fleet.FleetMemberAPI;
-import com.fs.starfarer.api.impl.campaign.CoreReputationPlugin.RepActionEnvelope;
-import com.fs.starfarer.api.impl.campaign.CoreReputationPlugin.RepActions;
 import com.fs.starfarer.api.impl.campaign.intel.PersonBountyIntel;
-import com.fs.starfarer.api.campaign.ReputationActionResponsePlugin.ReputationAdjustmentResult;
 
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -24,10 +21,8 @@ import java.util.Map;
  * fleet listener, and if that call is missed (battle no longer lists the fleet, or the fleet is gone before
  * the battle report) the intel's own advance() sees the flagship gone and ends it as END_OTHER.
  *
- * This guard watches every player engagement. If the bounty flagship is among the enemy's destroyed or
- * disabled ships, the kill is the player's. When the intel then ends END_OTHER, the guard pays exactly what
- * the game would have (bounty credits + PERSON_BOUNTY_REWARD reputation) and rewrites the result to
- * END_PLAYER_BOUNTY so it can never pay twice. Each step is logged with diagnostics.
+ * 1.0.9: diagnostics only. It watches every player engagement; if the bounty flagship is among the enemy's destroyed
+ * or disabled ships and the intel then ends END_OTHER, it raises an ALERT. It never pays (no quiet cheats).
  */
 public class BountyGuard extends BaseCampaignEventListener implements EveryFrameScript {
 
@@ -96,73 +91,13 @@ public class BountyGuard extends BaseCampaignEventListener implements EveryFrame
             PersonBountyIntel.BountyResult r = b.getResult();
             if (r == null) continue; // not decided yet
             it.remove();
-            if (r.type == PersonBountyIntel.BountyResultType.END_OTHER) {
-                String s = pay(b, "the game missed your kill");
-                EventLog.alert("bounty", "PAID (fixed): " + s);
-            }
+            // 1.0.9: no payout from the mod (the player chose: fix how battles end instead). Say so loudly.
+            if (r.type == PersonBountyIntel.BountyResultType.END_OTHER)
+                EventLog.alert("bounty", "MISSED: " + who(b) + " - your fleet killed the target but the game ended the bounty unpaid (END_OTHER). Tell the player; this is a mod bug in how the battle was closed.");
         }
     }
 
     static String who(PersonBountyIntel b) {
         return b.getPerson() == null ? b.getName() : b.getPerson().getNameString();
-    }
-
-    /** Pays what the game pays for a player kill and marks the bounty as paid to the player. */
-    static String pay(PersonBountyIntel b, String why) {
-        PersonBountyIntel.BountyResult r = b.getResult();
-        if (r == null) return who(b) + ": still active, nothing paid";
-        if (r.type == PersonBountyIntel.BountyResultType.END_PLAYER_BOUNTY) return who(b) + ": already paid";
-        int payment = (int) b.getBountyCredits();
-        Global.getSector().getPlayerFleet().getCargo().getCredits().add(payment);
-        ReputationAdjustmentResult rep = null;
-        try {
-            rep = Global.getSector().adjustPlayerReputation(
-                    new RepActionEnvelope(RepActions.PERSON_BOUNTY_REWARD, null, null, null, true, false), b.getFaction().getId());
-        } catch (Throwable t) {
-            Global.getLogger(BountyGuard.class).warn("bounty guard: reputation change failed", t);
-        }
-        {
-            r.type = PersonBountyIntel.BountyResultType.END_PLAYER_BOUNTY;
-            r.payment = payment;
-            r.rep = rep;
-        }
-        Global.getLogger(BountyGuard.class).info("Claude Captain paid bounty " + payment + " for " + who(b) + " (" + why + ")");
-        return who(b) + ": paid " + Shipyard.n(payment) + " cr from " + b.getFaction().getDisplayName() + " (" + why + ")";
-    }
-
-    /** 'bounty pay <name>': pays a bounty that ended END_OTHER after the player killed the target (one time only). */
-    static String payManual(String q) throws CommandException {
-        String key = q == null ? "" : q.trim().toLowerCase(java.util.Locale.ROOT);
-        if (key.isEmpty()) throw new CommandException("usage: bounty pay <name>");
-        PersonBountyIntel hit = null;
-        for (IntelInfoPlugin i : Global.getSector().getIntelManager().getIntel(PersonBountyIntel.class)) {
-            PersonBountyIntel b = (PersonBountyIntel) i;
-            String w = who(b);
-            if (w != null && w.toLowerCase(java.util.Locale.ROOT).contains(key)) { hit = b; break; }
-        }
-        if (hit == null) throw new CommandException("no person bounty matching '" + q + "' in the intel");
-        PersonBountyIntel.BountyResult r = hit.getResult();
-        if (r == null) throw new CommandException(who(hit) + ": still active, nothing to pay");
-        if (r.type == PersonBountyIntel.BountyResultType.END_PLAYER_BOUNTY) return who(hit) + ": already paid";
-        if (r.type != PersonBountyIntel.BountyResultType.END_OTHER)
-            throw new CommandException(who(hit) + ": ended " + r.type + ", only END_OTHER bounties can be paid this way");
-        String s = pay(hit, "manual payout for a missed kill");
-        EventLog.alert("bounty", "PAID (manual): " + s);
-        return s;
-    }
-
-    /** 'cheat credits <amount> <reason>': the player asked for it; logged loudly so it is never silent. */
-    static String cheatCredits(String a) throws CommandException {
-        String t = a == null ? "" : a.trim();
-        String[] p = t.split("\\s+", 2);
-        int n;
-        try { n = Integer.parseInt(p[0].replace(",", "")); } catch (Throwable e) { throw new CommandException("usage: cheat credits <amount> <reason>"); }
-        if (n <= 0 || n > 1000000) throw new CommandException("amount must be 1..1,000,000");
-        String why = p.length > 1 ? p[1] : "no reason given";
-        Global.getSector().getPlayerFleet().getCargo().getCredits().add(n);
-        String s = "CHEAT: added " + Shipyard.n(n) + " cr (" + why + ")";
-        EventLog.alert("cheat", s);
-        Global.getLogger(BountyGuard.class).info("Claude Captain " + s);
-        return s;
     }
 }

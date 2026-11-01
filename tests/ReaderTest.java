@@ -191,9 +191,17 @@ public class ReaderTest {
         Trader.Result b5 = Trader.buy(ancyra, true, "metals", 30f, 100f, CoreUITradeMode.OPEN);
         check(b5.ok && b5.qty < 30f && -b5.credits <= 100f, "spend cap trims the quantity (" + b5.text + ")");
 
-        // 1.0.8 keep list: metals are kept by default, so the mod refuses to sell them
+        // 1.0.9 keep list: a bare name keeps all of it; name:N keeps N aboard
+        Rules.useText("keep = metals\n");
         Trader.Result k1 = Trader.sell(ancyra, true, "metals", 1000f, CoreUITradeMode.OPEN);
-        check(!k1.ok && k1.text.contains("keep list"), "keep list blocks the sale (" + k1.text + ")");
+        check(!k1.ok && k1.text.contains("keeping all"), "keep list blocks the sale (" + k1.text + ")");
+        float heldMetals = Global.getSector().getPlayerFleet().getCargo().getCommodityQuantity("metals");
+        Rules.useText("keep = metals:40\n");
+        Trader.Result k2 = Trader.sell(ancyra, true, "metals", 1000f, CoreUITradeMode.OPEN);
+        check(k2.ok && near(k2.qty, heldMetals - 40f), "keep floor: sells only above 40 (" + k2.text + ")");
+        Trader.Result k3 = Trader.sell(ancyra, true, "metals", 1000f, CoreUITradeMode.OPEN);
+        check(!k3.ok && k3.text.contains("at least 40"), "keep floor: nothing left to sell (" + k3.text + ")");
+        Global.getSector().getPlayerFleet().getCargo().addCommodity("metals", heldMetals - 40f); // put the test's stock back
         Rules.useText("keep = none\n");
         float before = credits.get();
         Trader.Result s1 = Trader.sell(ancyra, true, "metals", 1000f, CoreUITradeMode.OPEN);

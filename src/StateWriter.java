@@ -37,6 +37,7 @@ public final class StateWriter {
         Map<String, Object> o = Json.obj();
         SectorAPI s = Global.getSector();
         o.put("captain_version", Files.VERSION);
+        o.put("captain_build", BuildInfo.BUILD);
         o.put("real_time_ms", System.currentTimeMillis());
         CampaignFleetAPI pf = s == null ? null : s.getPlayerFleet();
         if (pf == null) { o.put("state", "TITLE_SCREEN"); return o; }

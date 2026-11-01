@@ -765,8 +765,11 @@ public class CommandRunner {
             float have = c.getCommodityQuantity(id);
             float qty = qtyStr.equals("all") ? have : (float) num(qtyStr);
             if (Float.isNaN(qty) || qty <= 0) throw new CommandException("usage: " + usage);
-            qty = (float) Math.floor(Math.min(qty, have));
-            if (qty <= 0) throw new CommandException("you have no " + cm.name);
+            if (have < 1f) throw new CommandException("you have no " + cm.name);
+            // 1.0.9: the keep list applies to every sale (the metals were sold through this command)
+            int floor = Trader.keepFloor(id, cm.name);
+            qty = Guard.sellable(have, qty, floor);
+            if (qty <= 0) throw new CommandException("won't sell " + cm.name + ": keeping " + (floor == Integer.MAX_VALUE ? "all of it" : "at least " + floor) + " (captain_rules keep)");
             try { plugin.updateCargoPrePlayerInteraction(); } catch (Throwable ignored) {}
             float gross = market.getDemandPrice(id, qty, true);
             float net = gross * (1f - tariff);
@@ -802,6 +805,15 @@ public class CommandRunner {
             cost = market.getSupplyPrice(id, qty, true) * (1f + tariff);
         }
         if (cost > c.getCredits().get()) throw new CommandException("not enough credits");
+        // 1.0.9: the market-based price ceiling applies to explicit buys too
+        float cap = Trader.ceiling(id);
+        if (cap > 0f && cost / qty > cap) {
+            if (Trader.emergency(id)) EventLog.alert("trade", "EMERGENCY: buying " + cm.name + " at " + fmt(cost / qty) + "/unit, over the ceiling of " + fmt(cap));
+            else {
+                while (qty > 1 && cost / qty > cap) { qty = (float) Math.floor(qty * 0.9f); cost = market.getSupplyPrice(id, qty, true) * (1f + tariff); }
+                if (cost / qty > cap) throw new CommandException(cm.name + " costs " + fmt(cost / qty) + "/unit here, over the market ceiling of " + fmt(cap) + " (median x factor); not bought");
+            }
+        }
         sub.getCargo().removeCommodity(id, qty);
         c.addCommodity(id, qty);
         c.getCredits().subtract(cost);

@@ -290,9 +290,17 @@ public class TripRunner implements EveryFrameScript {
                     float ly = Misc.getDistanceToPlayerLY(target);
                     float perLY = Math.max(0.1f, pf.getLogistics().getFuelCostPerLightYear());
                     float need = TravelMath.fuel(ly * 1.2f + 1f, 2, perLY);
-                    if (ly > 0.5f && pf.getCargo().getFuel() < need) {
-                        pause("NOT READY: fuel " + Math.round(pf.getCargo().getFuel()) + " but reaching " + m.getName() + " (" + String.format("%.1f", ly) + " ly) needs about " + Math.round(need) + " - refuel first ('prices fuel')");
-                        return false;
+                    float bare = TravelMath.fuel(ly, 1, perLY);
+                    boolean sellsFuel = Goals.sells(m, "fuel");
+                    // 1.0.9: no deadlock - going to a fuel market we can reach, or resuming mid-flight, only warns
+                    if (ly > 0.5f && pf.getCargo().getFuel() < need && !fuelAnyway) {
+                        if ((sellsFuel && pf.getCargo().getFuel() >= bare) || pf.isInHyperspace()) {
+                            EventLog.warn("trip", "fuel " + Math.round(pf.getCargo().getFuel()) + " is under the safe " + Math.round(need) + " for " + m.getName()
+                                    + (pf.isInHyperspace() ? " (already under way)" : " - going there to refuel"));
+                        } else {
+                            pause("NOT READY: fuel " + Math.round(pf.getCargo().getFuel()) + " but reaching " + m.getName() + " (" + String.format("%.1f", ly) + " ly) needs about " + Math.round(need) + " - refuel first ('prices fuel'), or 'resume' to go anyway");
+                            return false;
+                        }
                     }
                 } catch (Throwable ignored) {}
                 try {
@@ -643,7 +651,8 @@ public class TripRunner implements EveryFrameScript {
             float room = pf().getCargo().getMaxCapacity() - pf().getCargo().getSpaceUsed();
             supNeed = Math.min(supNeed, room - 1f);
             budget = Math.max(0f, pf().getCargo().getCredits().get() - reserve() / 2f);
-            if (supNeed >= 1f) refillCost += topUp(m, mode, "supplies", (float) Math.ceil(supNeed), budget, "restock");
+            if (supNeed >= 1f && !Rules.b("ask_before_supplies", true)) refillCost += topUp(m, mode, "supplies", (float) Math.ceil(supNeed), budget, "restock");
+            else if (supNeed >= 1f) { note("restock: " + Math.round(supNeed) + " supplies NOT bought - ask the player first ('resupply <days>')"); EventLog.alert("supplies", "ask the player: " + Math.round(supNeed) + " supplies wanted at " + m.getName()); }
         }
         Trader.endStop();
         if (pf().getCargo().getFuel() < legFuel && !fuelAnyway) {
@@ -697,7 +706,8 @@ public class TripRunner implements EveryFrameScript {
                 float room = pf().getCargo().getMaxCapacity() - pf().getCargo().getSpaceUsed();
                 float sup = Math.min(supTarget - pf().getCargo().getSupplies(), room - 1f);
                 budget = Math.max(0f, pf().getCargo().getCredits().get() - reserve());
-                if (sup >= 1f) refillCost += topUp(m, mode, "supplies", (float) Math.ceil(sup), budget, "refill supplies");
+                if (sup >= 1f && !Rules.b("ask_before_supplies", true)) refillCost += topUp(m, mode, "supplies", (float) Math.ceil(sup), budget, "refill supplies");
+                else if (sup >= 1f) { note("refill: " + Math.round(sup) + " supplies NOT bought - ask the player first ('resupply <days>')"); EventLog.alert("supplies", "ask the player: " + Math.round(sup) + " supplies wanted at " + m.getName()); }
                 Trader.endStop();
             }
         }

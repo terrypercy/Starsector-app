@@ -300,6 +300,12 @@ public class BountyRunner implements EveryFrameScript {
         String a = arg == null ? "" : arg.trim().toLowerCase();
         if (a.equals("stop")) { instance.huntsLeft = 0; instance.stop("stopped by Claude"); return "hunt stopped"; }
         if (a.equals("status") || a.isEmpty()) return status();
+        if (a.equals("resume anyway")) { // 1.0.9: the player decided to leave short anyway
+            if (instance.phase != Phase.PAUSED) return "no paused hunt";
+            instance.departChecked = true;
+            EventLog.alert("hunt", "leaving without the full round trip covered: the player's decision");
+            a = "resume";
+        }
         if (a.equals("resume")) {
             if (instance.phase != Phase.PAUSED || instance.target == null) return "no paused hunt";
             Phase p = instance.pausedFrom == Phase.IDLE || instance.pausedFrom == Phase.PAUSED ? Phase.TRAVEL : instance.pausedFrom;
@@ -369,7 +375,9 @@ public class BountyRunner implements EveryFrameScript {
         report.append("#hunt ").append(t.name).append(" in ").append(t.where).append("\n");
         String low = logisticsProblem(t, tripSupplyDays(t));
         if (low != null) {
-            if (Rules.b("hunt_auto_resupply", true)) { startSub(new Goals.Resupply(Rules.f("resupply_days", 60f)), Phase.TRAVEL, low + ": resupplying first"); return; }
+            // 1.0.9: restock to what the departure check needs (fuel for the round trip; supplies are only quoted -
+            // the player is asked before every supply purchase)
+            if (Rules.b("hunt_auto_resupply", true)) { startSub(new Goals.Resupply(tripSupplyDays(t), roundTripFuel(t), false), Phase.TRAVEL, low + ": restocking first"); return; }
             pause(low + " - resupply before hunting"); return;
         }
         if (Rules.b("hunt_auto_resupply", true) && hullNeedsDock()) { startSub(new Goals.Repair(), Phase.TRAVEL, "hull damage: dockyard repair first"); return; }
@@ -400,15 +408,24 @@ public class BountyRunner implements EveryFrameScript {
     /** Null when supplies and fuel cover the trip; otherwise the reason not to go. */
     static String logisticsProblem(Target t, float minDays) {
         float days = supplyDays();
-        if (days < minDays) return "supplies for " + Math.round(days) + " days (need " + Math.round(minDays) + ")";
+        if (days < minDays) return "supplies for " + Math.round(days) + " days (need " + Math.round(minDays) + ")"
+                + (Goals.Resupply.lastQuote.isEmpty() ? "" : "; quote: " + Goals.Resupply.lastQuote);
+        float need = roundTripFuel(t);
+        if (need < 0f) return "can't work out the fuel for " + (t == null ? "the target" : t.name) + " - check by hand"; // 1.0.9: never pass silently
+        if (pf().getCargo().getFuel() < need) return "fuel " + Math.round(pf().getCargo().getFuel()) + " but the round trip needs about " + Math.round(need);
+        return null;
+    }
+
+    /** Fuel for there and back (20% margin, jump points), or -1 when it can't be worked out. */
+    static float roundTripFuel(Target t) {
         try {
             float perLY = pf().getLogistics().getFuelCostPerLightYear();
-            float ly = t == null || t.fleet == null ? 0f : Misc.getDistanceToPlayerLY(t.fleet);
-            int j = t == null || t.fleet == null ? 0 : jumpsTo(t.fleet);
-            float need = TravelMath.fuel(ly * 1.2f, j, perLY) * 2f;  // there and back, 20% margin, jump points included (1.0.7)
-            if (pf().getCargo().getFuel() < need) return "fuel " + Math.round(pf().getCargo().getFuel()) + " but the round trip needs about " + Math.round(need);
-        } catch (Throwable ignored) {}
-        return null;
+            float ly; int j;
+            if (t != null && t.fleet != null) { ly = Misc.getDistanceToPlayerLY(t.fleet); j = jumpsTo(t.fleet); }
+            else if (t != null && t.ly > 0f) { ly = t.ly; j = 2; } // 1.0.9: system bounties have no fleet; use the listed distance
+            else return t == null ? 0f : -1f;
+            return TravelMath.fuel(ly * 1.2f, j, perLY) * 2f;  // there and back, 20% margin, jump points included (1.0.7)
+        } catch (Throwable e) { return -1f; }
     }
 
     private void setPhase(Phase p, String why) {
@@ -671,7 +688,7 @@ public class BountyRunner implements EveryFrameScript {
             if (t != null) {
                 if (Rules.b("hunt_auto_resupply", true) && supplyDays() < Rules.f("hunt_min_supply_days", 30f)) {
                     target = t;
-                    startSub(new Goals.Resupply(Rules.f("resupply_days", 60f)), Phase.IDLE, "between targets: resupply (" + Math.round(supplyDays()) + " days left)");
+                    startSub(new Goals.Resupply(tripSupplyDays(t), roundTripFuel(t), false), Phase.IDLE, "between targets: restock (" + Math.round(supplyDays()) + " days left)");
                     return;
                 }
                 if (Rules.b("hunt_auto_resupply", true) && hullNeedsDock()) {

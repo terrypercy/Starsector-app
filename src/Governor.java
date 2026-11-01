@@ -56,7 +56,12 @@ public final class Governor {
 
     /** Every place that used to unpause the game asks here first. */
     public static void unpause() {
-        try { if (mayRun()) sector().setPaused(false); } catch (Throwable ignored) {}
+        try {
+            // 1.0.9: never let time pass while a battle is still open in a dialog: the bounty intel would see its
+            // target gone before the game reports the battle, and end the bounty unpaid (END_OTHER)
+            if (sector().getCampaignUI().getCurrentInteractionDialog() != null && sector().getPlayerFleet().getBattle() != null) return;
+            if (mayRun()) sector().setPaused(false);
+        } catch (Throwable ignored) {}
     }
 
     public static void arm(String why) {

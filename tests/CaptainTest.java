@@ -19,6 +19,7 @@ public class CaptainTest {
         json();
         storm();
         travel();
+        guard();
         System.out.println("CaptainTest: " + passes + " passed, " + fails + " failed");
         if (fails > 0) System.exit(1);
     }
@@ -440,5 +441,40 @@ public class CaptainTest {
         check(O.equals(claudecaptain.TravelMath.transverse(false, false, true, false, -1f, 50f, true)), "transverse: leaving a deep-space system -> jump out");
         check(N.equals(claudecaptain.TravelMath.transverse(false, true, true, true, -1f, 50f, true)), "transverse: already there -> nothing");
         check(N.equals(claudecaptain.TravelMath.transverse(false, true, false, false, -1f, 50f, true)), "transverse: in a normal system -> use its jump point first");
+    }
+
+    // ------------------------------------------------------------------ 1.0.9 guard rails
+
+    static void guard() {
+        String rule = "metals:50, heavy machinery:50, Gauss Cannon";
+        check(Guard.keepFloor(rule, "metals", "Metals") == 50, "keep: metals floor 50");
+        check(Guard.keepFloor(rule, "heavy_machinery", "Heavy Machinery") == 50, "keep: id with underscore matches");
+        check(Guard.keepFloor(rule, "gauss", "Gauss Cannon") == Integer.MAX_VALUE, "keep: bare name keeps all");
+        check(Guard.keepFloor(rule, "food", "Food") == 0, "keep: not listed");
+        check(Guard.keepFloor("none", "metals", "Metals") == 0, "keep: none");
+        check(Guard.keepFloor("metals:abc", "metals", "Metals") == Integer.MAX_VALUE, "keep: bad number keeps all (safe side)");
+        check(near(Guard.sellable(1565f, 1565f, 50), 1515f), "sellable: keeps 50");
+        check(near(Guard.sellable(30f, 100f, 50), 0f), "sellable: under the floor sells nothing");
+        check(near(Guard.sellable(500f, 100f, 50), 100f), "sellable: asked for less than free");
+        check(near(Guard.sellable(500f, 500f, Integer.MAX_VALUE), 0f), "sellable: kept outright");
+        List<Float> p = Arrays.asList(98f, 102f, 107f, 109f, 128f, 141f, 146f);
+        check(near(Guard.median(p), 109f), "median odd");
+        check(near(Guard.median(Arrays.asList(100f, 120f, 0f)), 110f), "median ignores zero, even count");
+        check(near(Guard.ceiling(p, 1.35f, 150f, 0f, 5), 109f * 1.35f), "ceiling follows the market");
+        check(near(Guard.ceiling(Arrays.asList(100f), 1.35f, 150f, 0f, 5), 150f), "ceiling: fallback with too few prices");
+        check(near(Guard.ceiling(p, 1.35f, 150f, 120f, 5), 120f), "ceiling: fixed override wins");
+        EventCore e = new EventCore(100);
+        e.add("d", EventCore.INFO, "a", "", "one");
+        long w = e.add("d", EventCore.WARN, "gov", "", "fuel low");
+        e.add("d", EventCore.INFO, "a", "", "three\nmore WARN text");
+        long al = e.add("d", EventCore.ALERT, "hunt", "", "paused");
+        check(e.firstNotableAfter(0) == w, "notable: first warn");
+        check(e.firstNotableAfter(w) == al, "notable: alert after the warn (continuation lines ignored)");
+        check(e.firstNotableAfter(al) == -1L, "notable: none after the last alert");
+        Map<String, String> a = new HashMap<String, String>(), z = new HashMap<String, String>();
+        a.put("keep", "metals:50"); a.put("x", "1"); z.put("keep", "none"); z.put("y", "2");
+        String d = Rules.diff(a, z);
+        check(d.contains("keep: metals:50 -> none") && d.contains("x: 1 -> (removed)") && d.contains("y: (unset) -> 2"), "rules diff: " + d);
+        check(Rules.diff(a, new HashMap<String, String>(a)).isEmpty(), "rules diff: no change");
     }
 }

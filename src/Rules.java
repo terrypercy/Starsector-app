@@ -114,9 +114,13 @@ public final class Rules {
       + "explore_min_supply_days = 25  # never explore below this many days of maintenance supplies\n"
       + "explore_skip_defended = true  # skip defended sites unless our DP covers the defenders x hunt_margin\n"
       + "explore_survey = false        # survey planets on the way (the survey screen can't be driven yet)\n"
-      + "keep = metals, heavy machinery  # commodities/weapons the mod must never sell (comma list)\n"
-      + "max_supply_price = 140        # won't buy supplies above this per unit (incl. tariff); 0 = no limit\n"
-      + "max_fuel_price = 45           # won't buy fuel above this per unit (incl. tariff); 0 = no limit\n"
+      + "keep = metals:50, heavy machinery:50  # never sold below this many (a bare name keeps all of it)\n"
+      + "ask_before_supplies = true    # automatic restocks only quote supplies; buy with 'resupply <days>' after the player agrees\n"
+      + "supply_price_factor = 1.35    # supplies ceiling = median price at friendly markets x this\n"
+      + "fuel_price_factor = 1.35      # fuel ceiling = median fuel price x this\n"
+      + "max_supply_price = 0          # fixed ceiling instead of the market one (0 = follow the market)\n"
+      + "max_fuel_price = 0\n"
+      + "emergency_fuel_ly = 10        # below this much fuel (or gov_min_supply_days of supplies) the ceiling is waived, with an alert\n"
       + "hunt_eta_factor = 2           # real trips take this many times the game's ETA (storms)\n"
       + "hunt_battle_supply_days = 20  # extra supply days a hunt keeps for CR recovery after the fight\n"
       + "explore_max_sites = 3         # sites per system visit\n"
@@ -145,10 +149,32 @@ public final class Rules {
                 text = DEFAULTS;
                 try { s.writeTextFileToCommon(Files.RULES, DEFAULTS); } catch (Throwable ignored) {}
             }
+            Map<String, String> before = new HashMap<String, String>(vals);
+            boolean first = before.isEmpty();
             parse(text);
+            if (!first) logChanges(before, vals);
         } catch (Throwable t) {
             parse(DEFAULTS);
         }
+    }
+
+    /** 1.0.9: every change to captain_rules.txt goes into the event log as a WARN, so a changed guard rail is never silent. */
+    static void logChanges(Map<String, String> before, Map<String, String> after) {
+        String d = diff(before, after);
+        if (d.length() > 0) try { EventLog.warn("rules", "captain_rules.txt changed:\n" + d); } catch (Throwable ignored) {}
+    }
+
+    /** "key: old -> new" per changed, added or removed key (pure, unit-tested). */
+    public static String diff(Map<String, String> before, Map<String, String> after) {
+        java.util.TreeSet<String> keys = new java.util.TreeSet<String>(before.keySet());
+        keys.addAll(after.keySet());
+        StringBuilder b = new StringBuilder();
+        for (String k : keys) {
+            String o = before.get(k), n = after.get(k);
+            if (o == null ? n == null : o.equals(n)) continue;
+            b.append(k).append(": ").append(o == null ? "(unset)" : o).append(" -> ").append(n == null ? "(removed)" : n).append("\n");
+        }
+        return b.toString().trim();
     }
 
     static void parseInto(String text, Map<String, String> into) {

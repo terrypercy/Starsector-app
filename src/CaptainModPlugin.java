@@ -21,7 +21,7 @@ public class CaptainModPlugin extends BaseModPlugin {
         Heartbeat.start();
         Rules.s("gov_min_supply_days", ""); // creates captain_rules.txt with the defaults on first run
         DialogAgent.rules();                // ...and dialog_rules.txt
-        EventLog.info("mod", "Claude Captain " + Files.VERSION + " loaded (game " + Global.getSettings().getVersionString() + ")");
+        EventLog.info("mod", "Claude Captain " + Files.VERSION + " build " + BuildInfo.BUILD + " loaded (game " + Global.getSettings().getVersionString() + ")");
         EventLog.flush(true);
     }
 
@@ -32,7 +32,7 @@ public class CaptainModPlugin extends BaseModPlugin {
         BountyRunner.install();
         CaptainHud.install();
         LootTracker.register();
-        BountyGuard.install(); // 1.0.8: pays person bounties the game missed after a player kill
+        BountyGuard.install(); // 1.0.9: alerts when a bounty the fleet killed ends unpaid (never pays)
         BattleConfig.load(); // 1.0.7: deploy list, auto and margin come back with the save
         EventLog.info("mod", "campaign loaded; battle deploy " + BattleConfig.deploy + (BattleConfig.auto ? " (auto-battle on)" : "") + "; " + (Governor.armed ? "Claude in control (paused until 'run')" : "player in control until the first inbox batch"));
     }

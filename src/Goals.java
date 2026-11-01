@@ -380,7 +380,15 @@ public final class Goals {
     public static class Resupply extends Goal {
         final float days;
         boolean bought = false;
+        /** 1.0.9: true only when the player OK'd this purchase (explicit 'resupply' command); automatic restocks just quote supplies. */
+        boolean approved = false;
+        /** 1.0.9: fuel to have aboard after this stop (0 = resupply_fuel_ly). */
+        float fuelTarget = 0f;
         public Resupply(float days) { this.days = days; title = "Resupply " + Math.round(days) + " days"; ctx = DialogAgent.ctx("resupply", "travel"); }
+        public Resupply(float days, float fuelTarget, boolean approved) { this(days); this.fuelTarget = fuelTarget; this.approved = approved; }
+
+        /** Last supply quote an automatic restock produced (for the hunt's NOT READY message). */
+        static volatile String lastQuote = "";
         public boolean lowCrOk() { return true; }
 
         public void tick(long now) {
@@ -396,12 +404,14 @@ public final class Goals {
                 progress = "to " + best.getName();
                 return;
             }
-            String r = buy(m, days);
+            String r = buy(m, days, fuelTarget, approved || !Rules.b("ask_before_supplies", true));
             done(r);
         }
 
         /** Buys supplies (maintenance x days + CR budget, credit-capped) and fuel, black market first. */
-        static String buy(MarketAPI m, float days) {
+        static String buy(MarketAPI m, float days) { return buy(m, days, 0f, true); }
+
+        static String buy(MarketAPI m, float days, float fuelTarget, boolean buySupplies) {
             CampaignFleetAPI pf = pf();
             InteractionDialogAPI d = sector().getCampaignUI().getCurrentInteractionDialog();
             CoreUITradeMode mode = Trader.tradeMode(d);
@@ -422,7 +432,15 @@ public final class Goals {
              .append(" -> order ").append(o);
             float budget = credits * pct / 100f;
             float spent = 0f;
-            if (o.qty >= 1f) spent += topUp(m, mode, "supplies", o.qty, budget, b);
+            lastQuote = "";
+            if (o.qty >= 1f && buySupplies) spent += topUp(m, mode, "supplies", o.qty, budget, b);
+            else if (o.qty >= 1f) {
+                // 1.0.9: the player wants to be asked before every supply purchase
+                lastQuote = "need " + Math.round(o.qty) + " supplies at " + m.getName() + ", about " + Math.round(unit) + "/unit = ~"
+                        + Misc.getWithDGS(Math.round(o.qty * unit)) + " cr (ceiling " + Math.round(Trader.ceiling("supplies")) + ")";
+                b.append("\n  NOT BOUGHT (ask first): ").append(lastQuote).append(" - send 'resupply ").append(Math.round(days)).append("' once the player agrees");
+                EventLog.alert("supplies", "ask the player: " + lastQuote);
+            }
             float fpl = 1f;
             try { fpl = pf.getLogistics().getFuelCostPerLightYear(); } catch (Throwable ignored) {}
             // 1.0.4: fuel is price-aware and credit-capped like supplies (Athulf charged 67/unit: 13k for fuel)
@@ -431,6 +449,8 @@ public final class Goals {
             float fuelLy = SupplyMath.fuelLy(Rules.f("resupply_fuel_ly", 25f), fuelUnit,
                     Rules.f("resupply_fuel_max_price", 40f), Rules.f("resupply_fuel_min_ly", 10f));
             float fq = SupplyMath.fuel(fuelLy, fpl, pf.getCargo().getFuel(), pf.getCargo().getMaxFuel());
+            // 1.0.9: a hunt asks for the fuel its round trip needs, not just resupply_fuel_ly (the 25 ly cap left Erlig short)
+            if (fuelTarget > 0f) fq = Math.max(fq, Math.min(pf.getCargo().getMaxFuel(), fuelTarget) - pf.getCargo().getFuel());
             float reserve = Rules.f("reserve_credits", 5000f);
             float fuelBudget = SupplyMath.fuelBudget(pf.getCargo().getCredits().get(), reserve, Rules.f("resupply_fuel_max_credit_pct", 25f));
             if (fuelLy < Rules.f("resupply_fuel_ly", 25f)) b.append("\n  fuel costs ").append(Math.round(fuelUnit)).append("/unit here: topping up to ")

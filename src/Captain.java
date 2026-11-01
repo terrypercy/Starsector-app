@@ -125,12 +125,32 @@ public class Captain implements EveryFrameScript {
         if (text == null || text.trim().length() == 0) return;
         String id = null;
         boolean coe = false;
+        long since = -1L;
         List<String> lines = new ArrayList<String>();
         for (String raw : text.replace("\r", "").split("\n")) {
             String l = raw.trim();
+            String low = l.toLowerCase(Locale.ROOT);
             if (l.startsWith("#id")) id = l.substring(3).trim();
-            else if (l.toLowerCase(Locale.ROOT).startsWith("#on_error") && l.toLowerCase(Locale.ROOT).contains("continue")) coe = true;
-            else if (l.length() > 0 && !l.startsWith("#")) lines.add(l);
+            else if (low.startsWith("#on_error") && low.contains("continue")) coe = true;
+            else if (low.startsWith("#since")) { try { since = Long.parseLong(l.substring(6).trim()); } catch (NumberFormatException ignored) {} }
+            else if (l.length() > 0 && !l.startsWith("#")) {
+                // 1.0.9: only the player (panel chip) can hand control to the player; from the inbox it would switch
+                // the governor off - every safety pause in the log was undone that way
+                if (low.matches("(control|hands)\\s+(player.*|on)")) { EventLog.alert("inbox", "refused '" + l + "': only the player can take control (panel chip)"); continue; }
+                lines.add(l);
+            }
+        }
+        // 1.0.9: a batch must say which events Claude has read (#since <n>) and is refused while a warning or alert
+        // after that is unread; 'pause' / 'halt' always get through
+        boolean safeOnly = !lines.isEmpty();
+        for (String l : lines) { String c0 = l.trim().toLowerCase(Locale.ROOT); if (!(c0.equals("pause") || c0.equals("halt"))) safeOnly = false; }
+        if (!safeOnly && Rules.b("require_since", true)) {
+            long unread = since < 0 ? -2L : EventLog.core.firstNotableAfter(since);
+            if (since < 0 || unread > 0) {
+                EventLog.alert("inbox", "batch " + id + " refused: " + (since < 0 ? "no '#since <event>' line" : "unread warning/alert #" + unread + " (batch cites #" + since + ")")
+                        + " - read 'events since' first");
+                return;
+            }
         }
         if (lastBatchId == null && s.fileExistsInCommon(Files.LAST_ID)) lastBatchId = s.readTextFileFromCommon(Files.LAST_ID).trim();
         if (id != null && id.equals(lastBatchId)) { EventLog.info("inbox", "batch " + id + " ignored: same #id as the last one"); return; }
@@ -289,7 +309,7 @@ public class Captain implements EveryFrameScript {
         }
         if (c.equals("resupply")) {
             float days = t.size() > 1 && CommandRunner.isNum(t.get(1)) ? (float) CommandRunner.num(t.get(1)) : Rules.f("resupply_days", 60f);
-            return new Goals.Resupply(days);
+            return new Goals.Resupply(days, 0f, true); // the player OK'd this purchase
         }
         if (c.equals("repair") && (t.size() == 1 || t.get(1).equalsIgnoreCase("dockyard"))) return new Goals.Repair();
         if (c.equals("hire")) {
@@ -397,6 +417,19 @@ public class Captain implements EveryFrameScript {
         }
         if (c.equals("unpause")) { arrived = false; return Governor.run(String.valueOf(Rules.f("gov_unpause_days", 3f))) + " ('unpause' = run " + Math.round(Rules.f("gov_unpause_days", 3f)) + " days)"; }
         if (c.equals("pause")) { Governor.stop("paused by command"); return "paused; run budget revoked"; }
+        if (c.equals("halt")) { // 1.0.9: one command stops everything
+            StringBuilder b = new StringBuilder("HALT:");
+            if (goal != null && !goal.finished()) { goal.cancel(); b.append(" goal cancelled (").append(goal.title).append(");"); }
+            if (TripRunner.busy() || TripRunner.loopLeft > 0) { TripRunner.loopLeft = 0; b.append(" ").append(TripRunner.cancel("halt")).append(";"); }
+            if (!"idle".equals(BountyRunner.state)) b.append(" ").append(BountyRunner.hunt("stop")).append(";");
+            if (!queue.isEmpty()) { b.append(" dropped ").append(queue).append(";"); queue.clear(); }
+            AskPopup.cancel();
+            Governor.arm("halt");
+            Governor.stop("halt");
+            try { sector().setPaused(true); } catch (Throwable ignored) {}
+            EventLog.alert("halt", b.toString());
+            return b.append(" game paused, Claude in control with no run budget").toString();
+        }
         if (c.equals("control") || c.equals("hands")) {
             String w = a.toLowerCase(Locale.ROOT);
             if (w.startsWith("player") || w.equals("on")) { Governor.disarm("command"); return "player in control: the governor only warns"; }
@@ -447,8 +480,11 @@ public class Captain implements EveryFrameScript {
             InteractionDialogAPI d = sector().getCampaignUI().getCurrentInteractionDialog();
             if (d == null) throw new CommandException("no dialog is open");
             String who = d.getInteractionTarget() == null ? "dialog" : d.getInteractionTarget().getName();
-            d.dismiss();
-            return "closed the dialog with " + who;
+            // 1.0.9: a battle dialog is finished the game's way (bounty, XP, reputation) before it closes;
+            // a bare dismiss there is what left bounties unpaid
+            String fin = LootTracker.finishEncounter(d);
+            if (fin == null) d.dismiss();
+            return "closed the dialog with " + who + (fin == null ? "" : " (" + fin + ")");
         }
         if (c.equals("dialog") && a.equalsIgnoreCase("sig")) {
             InteractionDialogAPI d = sector().getCampaignUI().getCurrentInteractionDialog();
@@ -471,8 +507,8 @@ public class Captain implements EveryFrameScript {
         if (c.equals("weapons")) return Shipyard.weapons(a);
         if (c.equals("find")) return Shipyard.find(a);
         if (c.equals("officers")) return Goals.officersForHire();
-        if (c.equals("cheat")) { if (a != null && a.trim().toLowerCase().startsWith("credits ")) return BountyGuard.cheatCredits(a.trim().substring(8)); throw new CommandException("usage: cheat credits <amount> <reason>"); }
-        if (c.equals("bounty")) { if (a != null && a.trim().toLowerCase().startsWith("pay ")) return BountyGuard.payManual(a.trim().substring(4)); return BountyRunner.result(a); }
+        if (c.equals("bounty")) return BountyRunner.result(a);
+        if (c.equals("preflight")) return Preflight.report(a);
         if (c.equals("buyship")) return Shipyard.buyShip(a);
         if (c.equals("buyspec")) return Shipyard.buySpec(a);
         if (c.equals("buyweapon")) return Shipyard.buyWeapon(a);

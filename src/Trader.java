@@ -126,14 +126,22 @@ public final class Trader {
             cost = m.getSupplyPrice(id, qty, true) * (1f + tariff);
         }
         if (cost > limit || qty < 1f) { r.text = "can't afford " + name + " (" + n(cost) + " cr for " + n(qty) + ")"; return r; }
-        // 1.0.8: price ceiling for supplies and fuel (live play: 72k spent on supplies at 163-218/unit without a warning)
-        float cap = "supplies".equals(id) ? Rules.f("max_supply_price", 140f) : "fuel".equals(id) ? Rules.f("max_fuel_price", 45f) : 0f;
+        // 1.0.9: market-based ceiling for supplies/fuel; buy the part under it, never above unless the fleet is in danger
+        float cap = ceiling(id);
         if (cap > 0f && cost / qty > cap) {
-            r.text = "won't buy " + name + " on the " + s.getNameOneLine() + ": " + n(cost / qty) + "/unit is over your ceiling of " + n(cap)
-                    + " (captain_rules max_" + ("fuel".equals(id) ? "fuel" : "supply") + "_price)";
-            return r;
+            if (emergency(id)) {
+                EventLog.alert("trade", "EMERGENCY: buying " + name + " at " + n(cost / qty) + "/unit, over the market ceiling of " + n(cap) + " (fleet low)");
+            } else {
+                for (int i = 0; i < 60 && qty > 1f && cost / qty > cap; i++) {
+                    qty = (float) Math.floor(qty * 0.9f);
+                    cost = m.getSupplyPrice(id, qty, true) * (1f + tariff);
+                }
+                if (qty < 1f || cost / qty > cap) {
+                    r.text = "won't buy " + name + " on the " + s.getNameOneLine() + ": " + n(cost / Math.max(1f, qty)) + "/unit is over the market ceiling of " + n(cap) + " (median price x factor)";
+                    return r;
+                }
+            }
         }
-
         s.getCargo().removeCommodity(id, qty);
         pc.addCommodity(id, qty);
         pc.getCredits().subtract(cost);
@@ -144,16 +152,41 @@ public final class Trader {
         return r;
     }
 
-    /** 1.0.8: the player's keep list (captain_rules: keep = metals, heavy machinery, ...). Nothing on it is ever sold by the mod. */
-    static boolean kept(String id, String name) {
-        String k = Rules.s("keep", "metals, heavy machinery").toLowerCase(java.util.Locale.ROOT);
-        if (k.trim().isEmpty()) return false;
-        for (String e : k.split(",")) {
-            String x = e.trim().replace('_', ' ');
-            if (x.isEmpty()) continue;
-            if ((id != null && id.toLowerCase(java.util.Locale.ROOT).replace('_', ' ').equals(x))
-                    || (name != null && name.toLowerCase(java.util.Locale.ROOT).equals(x))) return true;
-        }
+    /** 1.0.9: units of a good the player wants kept aboard (captain_rules keep = metals:50, heavy machinery:50). */
+    static int keepFloor(String id, String name) {
+        return Guard.keepFloor(Rules.s("keep", "metals:50, heavy machinery:50"), id, name);
+    }
+
+    /** True when a weapon/wing/good is kept outright (a bare name on the keep list). */
+    static boolean kept(String id, String name) { return keepFloor(id, name) == Integer.MAX_VALUE; }
+
+    /**
+     * 1.0.9: the most one unit of supplies/fuel may cost (incl. tariff): the median price across known friendly markets
+     * x supply_price_factor / fuel_price_factor, so it follows the market. A fixed max_*_price > 0 overrides. -1 = no limit.
+     */
+    static float ceiling(String id) {
+        boolean sup = "supplies".equals(id), fuel = "fuel".equals(id);
+        if (!sup && !fuel) return -1f;
+        java.util.List<Float> seen = new java.util.ArrayList<Float>();
+        try {
+            for (MarketAPI x : Global.getSector().getEconomy().getMarketsCopy()) {
+                if (x.isHidden() || x.getPrimaryEntity() == null || x.getFaction().isHostileTo("player")) continue;
+                if (x.getCommodityData(id) == null) continue;
+                seen.add(x.getSupplyPrice(id, 1f, true));
+            }
+        } catch (Throwable ignored) {}
+        float factor = Rules.f(sup ? "supply_price_factor" : "fuel_price_factor", 1.35f);
+        float override = Rules.f(sup ? "max_supply_price" : "max_fuel_price", 0f);
+        return Guard.ceiling(seen, factor, sup ? 150f : 50f, override, 5);
+    }
+
+    /** 1.0.9: buying above the ceiling is still allowed when the fleet would otherwise be in danger. */
+    static boolean emergency(String id) {
+        try {
+            com.fs.starfarer.api.campaign.CampaignFleetAPI pf = Global.getSector().getPlayerFleet();
+            if ("supplies".equals(id)) return GovMath.supplyDays(pf.getCargo().getSupplies(), Governor.maintPerDay(pf)) < Rules.f("gov_min_supply_days", 15f);
+            if ("fuel".equals(id)) return pf.getCargo().getFuel() < pf.getLogistics().getFuelCostPerLightYear() * Rules.f("emergency_fuel_ly", 10f);
+        } catch (Throwable ignored) {}
         return false;
     }
 
@@ -163,13 +196,13 @@ public final class Trader {
         CommoditySpecAPI spec = Global.getSector().getEconomy().getCommoditySpec(id);
         String name = spec == null ? id : spec.getName();
         if (why != null) { r.text = "can't sell " + name + ": " + why; return r; }
-        if (kept(id, name)) { r.text = "won't sell " + name + ": it is on your keep list (captain_rules: keep =)"; return r; }
         SubmarketAPI s = sub(m, black);
         if (s.getPlugin().isIllegalOnSubmarket(id, SubmarketPlugin.TransferAction.PLAYER_SELL)) { r.text = name + " can't be sold on the " + s.getNameOneLine(); return r; }
         refresh(s);
         CargoAPI pc = Global.getSector().getPlayerFleet().getCargo();
-        float qty = (float) Math.floor(Math.min(want, pc.getCommodityQuantity(id)));
-        if (qty < 1f) { r.text = "no " + name + " to sell"; return r; }
+        int floor = keepFloor(id, name);
+        float qty = Guard.sellable(pc.getCommodityQuantity(id), want, floor);
+        if (qty < 1f) { r.text = floor > 0 ? "won't sell " + name + ": keeping " + (floor == Integer.MAX_VALUE ? "all of it" : "at least " + floor) + " (captain_rules keep)" : "no " + name + " to sell"; return r; }
         float tariff = s.getTariff();
         float net = m.getDemandPrice(id, qty, true) * (1f - tariff);
         pc.removeCommodity(id, qty);

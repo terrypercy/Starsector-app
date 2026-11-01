@@ -103,6 +103,17 @@ public final class EventCore {
         return b.toString();
     }
 
+    /** 1.0.9: sequence number of the first WARN or ALERT after n, or -1 when there is none (unread warnings). */
+    public synchronized long firstNotableAfter(long n) {
+        for (String l : lines) {
+            long s = seqOf(l);
+            if (s <= n) continue;
+            String[] p = l.split(" ", 4);
+            if (p.length >= 3 && (WARN.equals(p[2]) || ALERT.equals(p[2]))) return s;
+        }
+        return -1L;
+    }
+
     /** The oldest sequence number still in the log (0 if empty). */
     public synchronized long firstSeq() {
         for (String l : lines) { long s = seqOf(l); if (s >= 0) return s; }
