@@ -316,6 +316,7 @@ public class BountyRunner implements EveryFrameScript {
             Phase p = instance.pausedFrom == Phase.IDLE || instance.pausedFrom == Phase.PAUSED ? Phase.TRAVEL : instance.pausedFrom;
             instance.clicks = 0;
             instance.bestDistTs = 0L;
+            AutoDialog.resetEmpty();
             if (instance.sub != null && "paused".equals(instance.sub.state)) instance.sub.resume();
             instance.setPhase(p, "resumed by Claude");
             if (p != Phase.TRAVEL) Governor.unpause();

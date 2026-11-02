@@ -129,6 +129,7 @@ public class TripRunner implements EveryFrameScript {
 
     public static String resume() {
         if (instance == null || !"paused".equals(state)) return "nothing to resume";
+        AutoDialog.resetEmpty(); // a resume restarts the empty-dialog grace (Nov 2 live)
         state = "running";
         pauseReason = null;
         instance.entered = false;

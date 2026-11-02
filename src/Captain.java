@@ -533,6 +533,7 @@ public class Captain implements EveryFrameScript {
                 fin = LootTracker.finishEncounter(d);
             }
             if (fin == null) d.dismiss();
+            AutoDialog.resetEmpty();
             return "closed the dialog with " + who + (fin == null ? "" : " (" + fin + ")");
         }
         if (c.equals("dialog") && a.equalsIgnoreCase("sig")) {

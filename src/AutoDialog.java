@@ -122,6 +122,12 @@ public final class AutoDialog {
 
     public static boolean emptyGraceOver(long since, long now) { return now - since >= EMPTY_GRACE_MS; }
 
+    /**
+     * Restarts the empty-dialog grace. Called on 'dialog close' and on every resume: Nov 2 live, a resume sent
+     * with 'dialog close' saw the closing dialog with the old timer and paused the hunt again at once.
+     */
+    public static void resetEmpty() { emptyDialog = null; emptySince = 0L; }
+
     static Act handle(InteractionDialogAPI d, SectorEntityToken tripTarget) { return handle(d, tripTarget, null, null); }
 
     static Act handle(InteractionDialogAPI d, SectorEntityToken tripTarget, List<String> ctx, SectorEntityToken bountyTarget) {
