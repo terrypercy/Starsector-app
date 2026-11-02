@@ -565,6 +565,15 @@ public class CaptainTest {
         check(!ColonyMath.claimAllows("persean", "luddic_church"), "colony claim: Netzach (Persean claim, Church commission) is off limits");
         check(!ColonyMath.claimAllows("persean", null), "colony claim: claimed system without a commission is off limits");
         check(ColonyMath.claimAllows("player", null), "colony claim: own system is fine");
+        {   // 1.0.9: every "not docked" approval is kept (live bug Nov 2: only the last of four survived)
+            ApprovalBook ab = new ApprovalBook();
+            ab.keep("sellship X black confirm", 1000L); ab.keep("buyship Y", 1000L); ab.keep("restore A", 1000L); ab.keep("restore B", 1000L);
+            check(ab.size() == 4, "approvals: all four kept");
+            check(ab.use("buyship Y", 500L) && !ab.has("buyship Y", 500L), "approvals: one use each");
+            check(ab.has("sellship X black confirm", 500L) && ab.has("restore A", 500L), "approvals: the others still kept");
+            check(!ab.use("restore B", 2000L), "approvals: expired after 30 minutes");
+            check(!ab.use("restore Z", 500L), "approvals: never approved -> not kept");
+        }
         {   // 1.0.9: pursuit picks (player's rule: second-in-command, fastest and most ready ships)
             java.util.List<PursuitMath.Cand> c = new java.util.ArrayList<PursuitMath.Cand>();
             c.add(new PursuitMath.Cand("Onslaught", 40f, 0.84f, 50f));

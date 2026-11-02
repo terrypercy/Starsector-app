@@ -50,6 +50,7 @@ public class Captain implements EveryFrameScript {
     /** 1.0.9: the line waiting for the player's Yes, and the one line the player approved (runs once). */
     private String pendingApproval = null, approvedLine = null;
     private long approvedUntil = 0L;
+    private final ApprovalBook kept = new ApprovalBook();
     private long askStart = 0L, askTry = 0L;
     private final CommandRunner runner = new CommandRunner();
 
@@ -252,7 +253,7 @@ public class Captain implements EveryFrameScript {
         String l = optional ? line.substring(9).trim() : line;
         // 1.0.9: purchases of supplies/ships, ship sales, hiring, restoring and leaving short need the player's click
         if (approvedLine != null && approvedUntil > 0L && System.currentTimeMillis() > approvedUntil) { approvedLine = null; approvedUntil = 0L; }
-        if (BatchMath.needsApproval(l) && !line.equals(approvedLine)) {
+        if (BatchMath.needsApproval(l) && !line.equals(approvedLine) && !kept.has(line, System.currentTimeMillis())) {
             String detail = "";
             try {
                 String low = l.toLowerCase(Locale.ROOT);
@@ -273,6 +274,7 @@ public class Captain implements EveryFrameScript {
         }
         boolean viaApproval = line.equals(approvedLine);
         if (viaApproval) approvedLine = null; // one use
+        else if (kept.use(line, System.currentTimeMillis())) viaApproval = true;
         try {
             Goals.Goal g = goalFor(l);
             if (g != null) {
@@ -288,8 +290,7 @@ public class Captain implements EveryFrameScript {
             // needs one. An approved line that failed for "not docked" keeps its approval for 30 minutes, so it can
             // be sent again after 'dock' without a second popup.
             if (viaApproval && r != null && r.startsWith("not docked")) {
-                approvedLine = line;
-                approvedUntil = System.currentTimeMillis() + 30L * 60L * 1000L;
+                kept.keep(line, System.currentTimeMillis() + 30L * 60L * 1000L);
                 r += "\n(the approval is kept for 30 minutes: 'dock <market>', then send '" + line + "' again)";
             }
             EventLog.add(EventCore.CMD, "cmd", "> " + line + "\n" + r);
@@ -460,7 +461,7 @@ public class Captain implements EveryFrameScript {
             if (!queue.isEmpty()) { b.append(" dropped ").append(queue).append(";"); queue.clear(); }
             AskPopup.cancel();
             askLine = null;
-            pendingApproval = null; approvedLine = null;
+            pendingApproval = null; approvedLine = null; kept.clear();
             halted = true;
             Governor.arm("halt");
             Governor.stop("halt");
