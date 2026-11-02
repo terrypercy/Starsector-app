@@ -54,6 +54,8 @@ public final class DialogRules {
       + "hunt,engage : match bounty=yes .*stronger=no -> choose ^(Move in to engage|Engage|Attack|Pursue them|Pursue|Go for the kill|Continue the battle)\n"
       + "# post-battle pursuits go to the second-in-command with the fastest, most ready ships (player's rule, Nov 2)\n"
       + "* : match opts=\\[[^\\]]*Order your second-in-command -> pursue_auto\n"
+      + "# 1.1.4: a fleeing enemy after a won fight is always pursued (then the second-in-command takes it)\n"
+      + "* : match opts=\\[[^\\]]*Pursue them[^\\]]*Let them go -> choose ^Pursue them$\n"
       + "pursuit,hunt,engage : match .* -> choose ^Take command of the action\n"
       + "\n"
       + "# --- exploration: salvage, debris, derelicts, surveys\n"

@@ -269,6 +269,8 @@ public class CaptainTest {
         check("pursue_auto".equals(chosen(r, travel, sig("fleet", "hostile=yes", pursuit), pursuit)), "pursuit after a fight on the way: second-in-command too (Nov 2 live case)");
         List<DialogRules.Opt> wreckT = opts("Pick through the wreckage");
         check("Pick through the wreckage".equals(chosen(r, travel, sig("fleet", "hostile=yes", wreckT), wreckT)), "wreckage after a fight on the way: picked (Nov 2 live case)");
+        List<DialogRules.Opt> flee = opts("Open a comm link", "Pursue them", "Maneuver to force a pitched battle", "Harry their retreat", "Let them go");
+        check("Pursue them".equals(chosen(r, travel, sig("fleet", "hostile=yes", flee), flee)), "won fight, enemy fleeing: pursue (then the second-in-command takes it)");
         List<DialogRules.Opt> after = opts("Consider ship recovery", "Pick through the wreckage", "Continue");
         check("pause".equals(chosen(r, Arrays.asList("after_battle", "hunt"), sig("fleet", "hostile=yes", after), after)), "after battle with recovery: pause for Claude");
         DialogRules.Decision noPause = r.decide(Arrays.asList("after_battle", "hunt"), sig("fleet", "hostile=yes", after), after, false, false);
