@@ -49,6 +49,7 @@ public class Captain implements EveryFrameScript {
     private String askLine = null;
     /** 1.0.9: the line waiting for the player's Yes, and the one line the player approved (runs once). */
     private String pendingApproval = null, approvedLine = null;
+    private long approvedUntil = 0L;
     private long askStart = 0L, askTry = 0L;
     private final CommandRunner runner = new CommandRunner();
 
@@ -247,6 +248,7 @@ public class Captain implements EveryFrameScript {
         boolean optional = line.toLowerCase(Locale.ROOT).startsWith("optional ");
         String l = optional ? line.substring(9).trim() : line;
         // 1.0.9: purchases of supplies/ships, ship sales, hiring, restoring and leaving short need the player's click
+        if (approvedLine != null && approvedUntil > 0L && System.currentTimeMillis() > approvedUntil) { approvedLine = null; approvedUntil = 0L; }
         if (BatchMath.needsApproval(l) && !line.equals(approvedLine)) {
             String detail = "";
             try {
@@ -266,7 +268,8 @@ public class Captain implements EveryFrameScript {
             EventLog.add(EventCore.CMD, "cmd", "> " + line + "\nwaiting for the player's Yes in the game (in-game popup)");
             return;
         }
-        if (line.equals(approvedLine)) approvedLine = null; // one use
+        boolean viaApproval = line.equals(approvedLine);
+        if (viaApproval) approvedLine = null; // one use
         try {
             Goals.Goal g = goalFor(l);
             if (g != null) {
@@ -278,6 +281,14 @@ public class Captain implements EveryFrameScript {
                 return;
             }
             String r = instant(l);
+            // 1.0.9 (Nov 2): the approval popup can only open outside a market screen, but buying or selling a ship
+            // needs one. An approved line that failed for "not docked" keeps its approval for 30 minutes, so it can
+            // be sent again after 'dock' without a second popup.
+            if (viaApproval && r != null && r.startsWith("not docked")) {
+                approvedLine = line;
+                approvedUntil = System.currentTimeMillis() + 30L * 60L * 1000L;
+                r += "\n(the approval is kept for 30 minutes: 'dock <market>', then send '" + line + "' again)";
+            }
             EventLog.add(EventCore.CMD, "cmd", "> " + line + "\n" + r);
             if (runner.lastMessage != null) msg(runner.lastMessage);
         } catch (AskStarted e) {
