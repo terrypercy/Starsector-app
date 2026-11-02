@@ -273,6 +273,10 @@ public class CaptainTest {
         check("Pursue them".equals(chosen(r, travel, sig("fleet", "hostile=yes", flee), flee)), "won fight, enemy fleeing: pursue (then the second-in-command takes it)");
         List<DialogRules.Opt> after = opts("Consider ship recovery", "Pick through the wreckage", "Continue");
         check("pause".equals(chosen(r, Arrays.asList("after_battle", "hunt"), sig("fleet", "hostile=yes", after), after)), "after battle with recovery: pause for Claude");
+        String own = sig("fleet", "hostile=yes", after).replace("target_goal=no ", "target_goal=no own_recover=yes ");
+        check("pause".equals(chosen(r, Arrays.asList("after_battle", "hunt"), own, after)), "after battle, one of ours recoverable: pause for Claude");
+        String hulks = own.replace("own_recover=yes", "own_recover=no");
+        check("Continue".equals(chosen(r, Arrays.asList("after_battle", "hunt"), hulks, after)), "after battle, only enemy hulks: skip recovery (Nov 2, every pirate fight)");
         DialogRules.Decision noPause = r.decide(Arrays.asList("after_battle", "hunt"), sig("fleet", "hostile=yes", after), after, false, false);
         check(noPause != null && after.get(noPause.option).text.equals("Pick through the wreckage"), "after 'resume' the recovery pause is skipped (no pause loop)");
         List<DialogRules.Opt> after2 = opts("Pick through the wreckage", "Continue");

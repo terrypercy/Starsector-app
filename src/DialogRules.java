@@ -45,6 +45,8 @@ public final class DialogRules {
       + "# --- after a battle\n"
       + "# derelicts found while exploring are salvaged, not recovered (player's call, Nov 1)\n"
       + "explore : match type=derelict .*opts=\\[[^\\]]*Consider ship recovery -> choose ^Not now$\n"
+      + "# 1.1.5 (Nov 2): only enemy hulks on offer (none of ours) -> skip recovery, as Claude did by hand after every pirate fight\n"
+      + "* : match own_recover=no .*opts=\\[[^\\]]*Consider ship recovery -> choose ^Continue$\n"
       + "after_battle,hunt : match opts=\\[[^\\]]*Consider ship recovery -> pause ship recovery: 'recover list' / 'recover <ship>' / 'hunt resume'\n"
       + "after_battle,hunt,explore : match .* -> choose ^Pick through the wreckage\n"
       + "# 1.1.0: a fight on the way (travel/trade) leaves wreckage too\n"

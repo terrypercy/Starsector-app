@@ -55,6 +55,26 @@ public final class Recovery {
         return l;
     }
 
+    /**
+     * 1.1.5: how many recoverable ships were ours (disabled or destroyed on our side in the last engagement);
+     * -1 when it can't be told (treated as "yes" by callers, so nothing of ours is left behind silently).
+     */
+    static int ownRecoverable(InteractionDialogAPI d) {
+        try {
+            List<FleetMemberAPI> l = ships(d);
+            FleetEncounterContext c = context(d);
+            if (l == null || c == null) return -1;
+            com.fs.starfarer.api.campaign.FleetEncounterContextPlugin.DataForEncounterSide mine = c.getDataFor(Global.getSector().getPlayerFleet());
+            if (mine == null) return -1;
+            List<FleetMemberAPI> lost = new ArrayList<FleetMemberAPI>();
+            if (mine.getDisabledInLastEngagement() != null) lost.addAll(mine.getDisabledInLastEngagement());
+            if (mine.getDestroyedInLastEngagement() != null) lost.addAll(mine.getDestroyedInLastEngagement());
+            int n = 0;
+            for (FleetMemberAPI m : l) if (lost.contains(m)) n++;
+            return n;
+        } catch (Throwable t) { return -1; }
+    }
+
     public static String command(String args) throws CommandException {
         InteractionDialogAPI d = Global.getSector().getCampaignUI().getCurrentInteractionDialog();
         List<FleetMemberAPI> l = ships(d);

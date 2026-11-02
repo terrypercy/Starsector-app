@@ -132,6 +132,10 @@ public final class DialogAgent {
         b.append(" loot=").append(DialogRules.yn(LootTracker.open()));
         boolean goalHere = goal != null && t != null && (t == goal || (t.getMarket() != null && goal.getMarket() == t.getMarket()));
         b.append(" target_goal=").append(DialogRules.yn(goalHere));
+        // 1.1.5 (Nov 2): own_recover=yes when one of OUR disabled ships is on the recovery list (else only enemy hulks)
+        boolean recoverOffered = false;
+        for (AutoDialog.Opt x : o) if (x.text.toLowerCase().startsWith("consider ship recovery")) recoverOffered = true;
+        if (recoverOffered) b.append(" own_recover=").append(DialogRules.yn(Recovery.ownRecoverable(d) != 0));
         b.append(' ').append(DialogRules.optsField(opts(o)));
         try {
             List<String> paras = DialogBridge.paragraphs(d, 3);
