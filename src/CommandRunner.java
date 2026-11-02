@@ -823,6 +823,7 @@ public class CommandRunner {
         if (cost > c.getCredits().get()) throw new CommandException("not enough credits");
         // 1.0.9: the market-based price ceiling applies to explicit buys too
         float cap = Trader.ceiling(id);
+        boolean ceilingCut = false; // 1.1.2: the note said "limited by credits" when the price ceiling cut the amount (Nov 2)
         if (cap > 0f && cost / qty > cap) {
             float hardCap = cap / Math.max(0.01f, Rules.f((id.equals("supplies") ? "supply" : "fuel") + "_price_factor", 1.35f)) * Rules.f("emergency_price_factor", 2f);
             if (Trader.emergency(id) && cost / qty <= hardCap) {
@@ -831,7 +832,7 @@ public class CommandRunner {
                 qty = eq; cost = market.getSupplyPrice(id, qty, true) * (1f + tariff);
                 EventLog.alert("trade", "EMERGENCY: buying " + fmt(qty) + " " + cm.name + " at " + fmt(cost / qty) + "/unit, over the ceiling of " + fmt(cap));
             } else {
-                while (qty > 1 && cost / qty > cap) { qty = (float) Math.floor(qty * 0.9f); cost = market.getSupplyPrice(id, qty, true) * (1f + tariff); }
+                while (qty > 1 && cost / qty > cap) { qty = (float) Math.floor(qty * 0.9f); cost = market.getSupplyPrice(id, qty, true) * (1f + tariff); ceilingCut = true; }
                 if (cost / qty > cap) throw new CommandException(cm.name + " costs " + fmt(cost / qty) + "/unit here, over the market ceiling of " + fmt(cap) + " (median x factor); not bought");
             }
         }
@@ -840,7 +841,7 @@ public class CommandRunner {
         c.getCredits().subtract(cost);
         reportTrade(market, sub, mode, id, qty, true, cost, tariff);
         String note = qtyStr.equals("max") || qtyStr.equals("all") || qty >= (float) num(qtyStr) ? "" :
-                " (limited by " + (qty >= stock ? "stock" : qty >= space ? "cargo space" : "credits") + ")";
+                " (limited by " + (ceilingCut ? "the price ceiling of " + fmt(cap) + "/unit: the price rises as stock runs out" : qty >= stock ? "stock" : qty >= space ? "cargo space" : "credits") + ")";
         lastMessage = "Bought " + fmt(qty) + " " + cm.name + " for " + fmt(cost) + " cr";
         return "bought " + fmt(qty) + " " + cm.name + " at " + market.getName() + " for " + fmt(cost) + " cr ("
                 + fmt(cost / qty) + "/unit incl. " + Math.round(tariff * 100) + "% tariff)" + note + "; credits " + fmt(c.getCredits().get());
