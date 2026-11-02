@@ -28,6 +28,8 @@ public final class Rules {
       + "gov_fuel_margin_pct = 25      # fuel must reach the nearest friendly market plus this %...\n"
       + "gov_fuel_margin_ly = 2        # ...plus this many light years\n"
       + "gov_min_cr = 40               # pause when a combat ship's CR drops under this % (unless the plan is resting/repairing)\n"
+      + "gov_supply_guard = true       # suspend CR recovery when it would empty the hold within gov_supply_guard_days; resume when supplies cover it\n"
+      + "gov_supply_guard_days = 7\n"
       + "gov_threat_ratio = 1.0        # pause when a visible hostile fleet stronger than this x our DP closes in\n"
       + "gov_implicit_max_days = 15    # a batch that starts a goal without a 'run' line runs until done, at most this many days (0 = never implicit)\n"
       + "gov_until_max_days = 60       # cap for 'run until ...'\n"

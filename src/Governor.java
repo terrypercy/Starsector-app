@@ -200,6 +200,44 @@ public final class Governor {
         try { checkAlarms(pf, d); } catch (Throwable t) { Global.getLogger(Governor.class).warn("Claude Captain: governor check failed", t); }
     }
 
+    /** 1.1.0: ships whose CR recovery the supply guard suspended (fleet member ids). */
+    private static final java.util.Set<String> guardSuspended = new java.util.HashSet<String>();
+
+    /** 1.1.0 (Nov 2): suspends CR recovery before it empties the hold, and resumes it once supplies cover it. */
+    static void supplyGuard(CampaignFleetAPI pf, GovMath.Input in) {
+        if (!armed || !Rules.b("gov_supply_guard", true) || in.inBattle) return;
+        List<FleetMemberAPI> ms = pf.getFleetData().getMembersListCopy();
+        Map<String, FleetMemberAPI> byId = new HashMap<String, FleetMemberAPI>();
+        for (FleetMemberAPI m : ms) byId.put(m.getId(), m);
+        guardSuspended.retainAll(byId.keySet());
+        GovMath.Guard g = GovMath.supplyGuard(in.supplies, in.burnPerDay, in.maintPerDay, Goals.crBudget(pf), in.docked,
+                !guardSuspended.isEmpty(), Rules.f("gov_supply_guard_days", GovMath.BURN_WARN_DAYS), in.minSupplyDays);
+        if (g == GovMath.Guard.SUSPEND) {
+            StringBuilder b = new StringBuilder();
+            for (FleetMemberAPI m : ms) {
+                if (m.isMothballed() || m.getRepairTracker().isSuspendRepairs()) continue;
+                if (m.getRepairTracker().getCR() < GovMath.GUARD_KEEP_CR) continue;
+                m.getRepairTracker().setSuspendRepairs(true);
+                guardSuspended.add(m.getId());
+                b.append(b.length() == 0 ? "" : ", ").append(m.getShipName());
+            }
+            if (b.length() > 0) EventLog.alert("gov", "supply guard: " + Math.round(in.supplies) + " supplies last "
+                    + Math.round(GovMath.supplyDays(in.supplies, in.burnPerDay)) + " days at " + Math.round(in.burnPerDay)
+                    + "/day - CR recovery suspended on " + b + " (ships under " + Math.round(GovMath.GUARD_KEEP_CR * 100f)
+                    + "% CR keep recovering); it resumes once supplies cover it");
+        } else if (g == GovMath.Guard.RESUME) {
+            StringBuilder b = new StringBuilder();
+            for (String id : guardSuspended) {
+                FleetMemberAPI m = byId.get(id);
+                if (m == null) continue;
+                m.getRepairTracker().setSuspendRepairs(false);
+                b.append(b.length() == 0 ? "" : ", ").append(m.getShipName());
+            }
+            guardSuspended.clear();
+            if (b.length() > 0) EventLog.info("gov", "supply guard: supplies cover the recovery now - CR recovery resumed on " + b);
+        }
+    }
+
     static float maintPerDay(CampaignFleetAPI pf) {
         float perMonth = 0f;
         for (FleetMemberAPI m : pf.getFleetData().getMembersListCopy()) {
@@ -306,13 +344,15 @@ public final class Governor {
         }
         last = in;
 
+        try { supplyGuard(pf, in); } catch (Throwable t) { Global.getLogger(Governor.class).warn("Claude Captain: supply guard failed", t); }
+
         List<GovMath.Alarm> fresh = latch.update(GovMath.check(in));
         boolean toMarket = headingToMarket();
         for (GovMath.Alarm a : fresh) {
             // 1.0.5: routine alarms (supplies/fuel while a goal already heads to a market, storm hull scrapes)
             // are logged, not paused on: every pause cost a round trip with nothing to decide
-            if (armed && !Rules.b("gov_pause_routine", false)
-                    && GovMath.routine(a.key, toMarket, in.worstHullDropOutsideBattle, Rules.f("gov_incident_pause_pct", 40f) / 100f)) {
+            if (armed && ((a.key.equals("cr") && in.docked) || (!Rules.b("gov_pause_routine", false)
+                    && GovMath.routine(a.key, toMarket, in.worstHullDropOutsideBattle, Rules.f("gov_incident_pause_pct", 40f) / 100f)))) {
                 EventLog.warn("gov", a.text + " (routine: not paused" + (toMarket ? ", already heading to a market" : "") + ")");
                 continue;
             }

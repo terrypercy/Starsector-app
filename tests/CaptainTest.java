@@ -517,6 +517,22 @@ public class CaptainTest {
         for (GovMath.Alarm al : GovMath.check(hz)) if (al.key.equals("hazard")) hazAlarm = true;
         check(hazAlarm, "hazard alarm: a day inside stops the fleet");
         check(!GovMath.routine("hazard", true, 0f, 0.4f), "hazard alarm always pauses, even heading to a market");
+        // Nov 2: after the Silva fight, 526 supplies at 111/day (CR recovery) emptied on the way to Tartessus
+        check(GovMath.supplyGuard(526f, 111f, 7.6f, 1024f, false, false, 7f, 15f) == GovMath.Guard.SUSPEND, "guard: 526 sup at 111/day (4.7 days) suspends CR recovery");
+        check(GovMath.supplyGuard(526f, 111f, 7.6f, 1024f, true, false, 7f, 15f) == GovMath.Guard.NONE, "guard: not while docked (buying)");
+        check(GovMath.supplyGuard(526f, 9f, 7.6f, 1024f, false, false, 7f, 15f) == GovMath.Guard.NONE, "guard: maintenance-only burn is the maintenance alarm's job");
+        check(GovMath.supplyGuard(1200f, 111f, 7.6f, 1024f, false, false, 7f, 15f) == GovMath.Guard.NONE, "guard: 10+ days of burn is fine");
+        check(GovMath.supplyGuard(526f, 8f, 7.6f, 1024f, false, true, 7f, 15f) == GovMath.Guard.NONE, "guard: suspended ships stay suspended while supplies fall short (no flip-flop)");
+        check(GovMath.supplyGuard(1475f, 8f, 7.6f, 1024f, true, true, 7f, 15f) == GovMath.Guard.RESUME, "guard: resumes once supplies cover recovery + 15 days (1024+114)");
+        GovMath.Input cr = new GovMath.Input();
+        cr.supplies = 1000f; cr.maintPerDay = 7f; cr.lowestCombatCR = 0.05f; cr.lowestCRShip = "Rid And Gone"; cr.minCR = 0.4f;
+        GovMath.Latch lc = new GovMath.Latch();
+        check(lc.update(GovMath.check(cr)).size() == 1, "cr alarm fires");
+        lc.ack();
+        cr.docked = true;
+        check(lc.update(GovMath.check(cr)).isEmpty(), "cr alarm: still acknowledged while docked");
+        cr.docked = false;
+        check(lc.update(GovMath.check(cr)).isEmpty(), "cr alarm: not re-fired on undock (it fired at every market stop on Nov 2)");
         List<DialogRules.Opt> rec = opts("Consider ship recovery", "Not now");
         String recSig = "type=derelict target=Derelict Ship faction=neutral hostile=no useful=no scan=no illegal=no bounty=no stronger=no salvage=yes loot=no target_goal=yes " + DialogRules.optsField(rec) + " text=Explore";
         check("Not now".equals(chosen(dr, Arrays.asList("explore", "after_battle"), recSig, rec)), "derelict on a detour: passed on, then salvaged");

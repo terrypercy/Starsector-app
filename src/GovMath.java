@@ -76,6 +76,29 @@ public final class GovMath {
         return (ly * (1f + marginPct / 100f) + marginLy) * Math.max(0f, fuelPerLy);
     }
 
+    /** 1.1.0 (Nov 2): what the supply guard does with CR recovery this check. */
+    public enum Guard { NONE, SUSPEND, RESUME }
+
+    /**
+     * 1.1.0 (Nov 2): after the Silva fight CR recovery burned 111 supplies/day and emptied the hold on the way to a market,
+     * while the alarm only logged "routine: already heading to a market". The guard suspends CR recovery when the hold
+     * would last fewer than warnDays at the current burn (not while docked: the player is buying), and resumes the ships
+     * it suspended once the hold covers the remaining recovery plus minDays of maintenance.
+     */
+    public static Guard supplyGuard(float supplies, float burnPerDay, float maintPerDay, float crRecoveryNeed,
+                                    boolean docked, boolean anySuspendedByGuard, float warnDays, float minDays) {
+        if (anySuspendedByGuard) {
+            if (supplies >= crRecoveryNeed + maintPerDay * minDays) return Guard.RESUME;
+            return Guard.NONE;
+        }
+        if (docked) return Guard.NONE;
+        if (burnPerDay <= maintPerDay * 1.5f) return Guard.NONE;
+        return supplyDays(supplies, burnPerDay) < warnDays ? Guard.SUSPEND : Guard.NONE;
+    }
+
+    /** 1.1.0: ships under this CR keep recovering even when the guard suspends the rest (0% CR means accidents). */
+    public static final float GUARD_KEEP_CR = 0.15f;
+
     /** Days of supplies at the current burn below which the burn alarm fires. */
     public static final float BURN_WARN_DAYS = 7f;
 
@@ -97,7 +120,8 @@ public final class GovMath {
             if (in.fuel < need) out.add(new Alarm("fuel", "fuel " + Math.round(in.fuel) + " but reaching " + in.nearestFriendlyName + " ("
                     + String.format(java.util.Locale.ROOT, "%.1f", in.nearestFriendlyLy) + " ly) with margin needs " + Math.round(need)));
         }
-        if (!in.lowCrExpected && !in.inBattle && !in.docked && in.lowestCombatCR < in.minCR)
+        // 1.1.0: no longer dropped while docked - that cleared the acknowledgement at every market and re-fired it on undock
+        if (!in.lowCrExpected && !in.inBattle && in.lowestCombatCR < in.minCR)
             out.add(new Alarm("cr", in.lowestCRShip + " is at " + Math.round(in.lowestCombatCR * 100f) + "% CR (minimum " + Math.round(in.minCR * 100f) + "%)"));
         if (in.threatDP > 0f && in.threatClosing && in.threatDP > in.ourDP * in.threatRatio)
             out.add(new Alarm("threat:" + in.threatName, in.threatName + " (" + Math.round(in.threatDP) + " DP vs our " + Math.round(in.ourDP) + ") is closing in"));
@@ -129,7 +153,7 @@ public final class GovMath {
             // 1.0.9: a threat that fired and then flickered off (often while the game sits paused waiting for Claude)
             // is remembered for THREAT_ACK_GRACE checks, so the acknowledgement that follows still covers it
             for (String k : new ArrayList<String>(fired.keySet()))
-                if (!now.contains(k) && k.startsWith("threat:")) lapsed.put(k, 0);
+                if (!now.contains(k) && (k.startsWith("threat:") || k.equals("cr"))) lapsed.put(k, 0);
             for (java.util.Iterator<Map.Entry<String, Integer>> it = lapsed.entrySet().iterator(); it.hasNext();) {
                 Map.Entry<String, Integer> e = it.next();
                 if (now.contains(e.getKey())) continue;
@@ -143,7 +167,7 @@ public final class GovMath {
             for (java.util.Iterator<String> it = acked.iterator(); it.hasNext();) {
                 String k = it.next();
                 if (now.contains(k)) { quiet.remove(k); continue; }
-                if (k.startsWith("threat:")) {
+                if (k.startsWith("threat:") || k.equals("cr")) {
                     Integer q = quiet.get(k);
                     int n = q == null ? 1 : q + 1;
                     if (n < THREAT_ACK_GRACE) { quiet.put(k, n); continue; }
