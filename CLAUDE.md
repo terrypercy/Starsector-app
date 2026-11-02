@@ -30,6 +30,7 @@ Terry (terrypercy on GitHub). Plays a single-player Starsector campaign and buil
 | **Claude Captain** | Starsector mod, v1.0.9; repo terrypercy/starsector-app. See memory/projects/claude-captain.md |
 
 ## Preferences
+- Task list and memory cover Starsector only; don't add work or personal items
 - Rules are enforced in the mod, not left to the agent's memory
 - Supplies are never bought automatically; money/ship actions need a Yes on the in-game popup (chat "yes" doesn't count)
 - Never undo the player's own pause; never take control away via the inbox
