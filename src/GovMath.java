@@ -87,8 +87,17 @@ public final class GovMath {
      */
     public static Guard supplyGuard(float supplies, float burnPerDay, float maintPerDay, float crRecoveryNeed,
                                     boolean docked, boolean anySuspendedByGuard, float warnDays, float minDays) {
+        return supplyGuard(supplies, burnPerDay, maintPerDay, crRecoveryNeed, docked, anySuspendedByGuard, warnDays, minDays, 0f);
+    }
+
+    /**
+     * burnAtSuspend: the burn that made the guard suspend. Resuming also needs twice warnDays of that burn: the CR estimate
+     * leaves out hull repairs, and without this the guard flipped every half second on Nov 2 (resume, burn 105/day, suspend).
+     */
+    public static Guard supplyGuard(float supplies, float burnPerDay, float maintPerDay, float crRecoveryNeed,
+                                    boolean docked, boolean anySuspendedByGuard, float warnDays, float minDays, float burnAtSuspend) {
         if (anySuspendedByGuard) {
-            if (supplies >= crRecoveryNeed + maintPerDay * minDays) return Guard.RESUME;
+            if (supplies >= crRecoveryNeed + maintPerDay * minDays && supplies >= burnAtSuspend * warnDays * 2f) return Guard.RESUME;
             return Guard.NONE;
         }
         if (docked) return Guard.NONE;

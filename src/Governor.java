@@ -202,6 +202,7 @@ public final class Governor {
 
     /** 1.1.0: ships whose CR recovery the supply guard suspended (fleet member ids). */
     private static final java.util.Set<String> guardSuspended = new java.util.HashSet<String>();
+    private static float guardBurn = 0f;
 
     /** 1.1.0 (Nov 2): suspends CR recovery before it empties the hold, and resumes it once supplies cover it. */
     static void supplyGuard(CampaignFleetAPI pf, GovMath.Input in) {
@@ -211,8 +212,9 @@ public final class Governor {
         for (FleetMemberAPI m : ms) byId.put(m.getId(), m);
         guardSuspended.retainAll(byId.keySet());
         GovMath.Guard g = GovMath.supplyGuard(in.supplies, in.burnPerDay, in.maintPerDay, Goals.crBudget(pf), in.docked,
-                !guardSuspended.isEmpty(), Rules.f("gov_supply_guard_days", GovMath.BURN_WARN_DAYS), in.minSupplyDays);
+                !guardSuspended.isEmpty(), Rules.f("gov_supply_guard_days", GovMath.BURN_WARN_DAYS), in.minSupplyDays, guardBurn);
         if (g == GovMath.Guard.SUSPEND) {
+            guardBurn = in.burnPerDay;
             StringBuilder b = new StringBuilder();
             for (FleetMemberAPI m : ms) {
                 if (m.isMothballed() || m.getRepairTracker().isSuspendRepairs()) continue;
@@ -234,6 +236,7 @@ public final class Governor {
                 b.append(b.length() == 0 ? "" : ", ").append(m.getShipName());
             }
             guardSuspended.clear();
+            guardBurn = 0f;
             if (b.length() > 0) EventLog.info("gov", "supply guard: supplies cover the recovery now - CR recovery resumed on " + b);
         }
     }

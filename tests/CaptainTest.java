@@ -527,6 +527,8 @@ public class CaptainTest {
         check(GovMath.supplyGuard(1200f, 111f, 7.6f, 1024f, false, false, 7f, 15f) == GovMath.Guard.NONE, "guard: 10+ days of burn is fine");
         check(GovMath.supplyGuard(526f, 8f, 7.6f, 1024f, false, true, 7f, 15f) == GovMath.Guard.NONE, "guard: suspended ships stay suspended while supplies fall short (no flip-flop)");
         check(GovMath.supplyGuard(1475f, 8f, 7.6f, 1024f, true, true, 7f, 15f) == GovMath.Guard.RESUME, "guard: resumes once supplies cover recovery + 15 days (1024+114)");
+        check(GovMath.supplyGuard(527f, 8f, 7.6f, 300f, false, true, 7f, 15f, 105f) == GovMath.Guard.NONE, "guard: no resume while the hold can't carry the old burn for 14 days (flip-flop, Nov 2)");
+        check(GovMath.supplyGuard(1500f, 8f, 7.6f, 300f, false, true, 7f, 15f, 105f) == GovMath.Guard.RESUME, "guard: resumes with 1,500 supplies vs 105/day");
         GovMath.Input cr = new GovMath.Input();
         cr.supplies = 1000f; cr.maintPerDay = 7f; cr.lowestCombatCR = 0.05f; cr.lowestCRShip = "Rid And Gone"; cr.minCR = 0.4f;
         GovMath.Latch lc = new GovMath.Latch();
