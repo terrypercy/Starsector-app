@@ -17,7 +17,7 @@ trade, explore), answers routine dialogs, and reports to an event log and state 
 - Preflight GO; save before hunt; trip took 27 days vs ETA 10.
 - Found/fixed: false pause hold on load; detours not salvaging.
 - Game froze 65 s into the battle (main loop stalled, JVM alive). Likely memory: Xmx 2 GB, PC at 94-97% RAM.
-  Needs a local restart. Last save May 20 (in-game), before the hunt.
+  Restarted locally (Nov 2). Last save was May 20 in-game date, before the hunt.
 
 ## Open items
 Tracked in TASKS.md.
