@@ -462,6 +462,13 @@ public class CaptainTest {
     static void guard() {
         String rule = "metals:50, heavy machinery:50, Gauss Cannon";
         check(Guard.keepFloor(rule, "metals", "Metals") == 50, "keep: metals floor 50");
+        // Nov 1 live case: salvage loot screen with no readable options, then the empty dialog left behind
+        DialogRules dr = DialogRules.parse(DialogRules.DEFAULTS);
+        List<DialogRules.Opt> none = new ArrayList<DialogRules.Opt>();
+        String lootSig = "type=derelict target=Derelict Ship faction=neutral hostile=no useful=no scan=no illegal=no bounty=no stronger=no salvage=yes loot=yes target_goal=yes opts=[] text=Begin salvage operations";
+        check("loot".equals(chosen(dr, Arrays.asList("explore", "after_battle"), lootSig, none)), "salvage loot screen with no options: loot is taken");
+        check(!AutoDialog.emptyGraceOver(1000L, 1000L + AutoDialog.EMPTY_GRACE_MS - 1L), "empty dialog: still settling inside the grace period");
+        check(AutoDialog.emptyGraceOver(1000L, 1000L + AutoDialog.EMPTY_GRACE_MS), "empty dialog: stuck after the grace period");
         check(Guard.keepFloor(rule, "heavy_machinery", "Heavy Machinery") == 50, "keep: id with underscore matches");
         check(Guard.keepFloor(rule, "gauss", "Gauss Cannon") == Integer.MAX_VALUE, "keep: bare name keeps all");
         check(Guard.keepFloor(rule, "food", "Food") == 0, "keep: not listed");

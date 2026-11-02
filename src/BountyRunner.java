@@ -548,7 +548,7 @@ public class BountyRunner implements EveryFrameScript {
                 pause("dialog on the way: " + AutoDialog.lastWhy);
                 return;
             }
-            log(a.note);
+            if (!a.note.isEmpty()) log(a.note);
             waitUntil = now + 1500L;
             return;
         }
@@ -665,7 +665,7 @@ public class BountyRunner implements EveryFrameScript {
             if (handleAfterOptions(d, opts, now)) return;
             AutoDialog.Act a = AutoDialog.handle(d, null, DialogAgent.ctx("after_battle", "hunt"), null);
             if (a == null) { EventLog.alert("dialog", "post-battle dialog not covered\n" + DialogAgent.describe(d, DialogAgent.ctx("after_battle", "hunt"), null, null)); pause("post-battle dialog: " + AutoDialog.lastWhy); return; }
-            log(a.note);
+            if (!a.note.isEmpty()) log(a.note);
             waitUntil = now + 1500L;
             return;
         }

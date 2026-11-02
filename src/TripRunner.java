@@ -409,7 +409,7 @@ public class TripRunner implements EveryFrameScript {
                     progressStamp = sector().getClock().getTimestamp(); progressDist = Float.MAX_VALUE;
                     if (a.disengage) disengagedAt = now;
                     unpauseAfterDialog = true;
-                    note(a.note);
+                    if (!a.note.isEmpty()) note(a.note);
                     waitUntil = now + 1500L;
                     return true;
                 }

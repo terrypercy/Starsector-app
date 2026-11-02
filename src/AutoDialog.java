@@ -115,12 +115,34 @@ public final class AutoDialog {
      */
     static String lastWhy = "";
 
+    /** How long a dialog may show no options before it counts as stuck. */
+    public static final long EMPTY_GRACE_MS = 5000L;
+    private static Object emptyDialog = null;
+    private static long emptySince = 0L;
+
+    public static boolean emptyGraceOver(long since, long now) { return now - since >= EMPTY_GRACE_MS; }
+
     static Act handle(InteractionDialogAPI d, SectorEntityToken tripTarget) { return handle(d, tripTarget, null, null); }
 
     static Act handle(InteractionDialogAPI d, SectorEntityToken tripTarget, List<String> ctx, SectorEntityToken bountyTarget) {
         lastWhy = "";
         List<Opt> opts = options(d);
-        if (opts.isEmpty()) { lastWhy = "no readable options"; return null; }
+        if (opts.isEmpty()) {
+            // 1.0.9: a salvage loot screen hides the options - take the loot by the rules (Nov 1: 'Begin salvage
+            // operations' paused the hunt twice: once on the loot screen, once on the empty dialog it left behind)
+            if (LootTracker.open()) {
+                DialogAgent.Result lr = DialogAgent.apply(d, ctx == null ? DialogAgent.ctx("travel") : ctx, tripTarget, bountyTarget);
+                if (lr != null && !lr.paused) { emptyDialog = null; return new Act(lr.clicked, lr.text, false, false); }
+                if (lr != null) { lastWhy = lr.text; return null; }
+            }
+            // a dialog closing or switching screens shows no options for a moment: wait before calling it stuck
+            long now = System.currentTimeMillis();
+            if (emptyDialog != d) { emptyDialog = d; emptySince = now; }
+            if (!emptyGraceOver(emptySince, now)) return new Act(null, "", false, false);
+            lastWhy = "no readable options for " + (EMPTY_GRACE_MS / 1000L) + " s";
+            return null;
+        }
+        emptyDialog = null;
         // data-driven rules first (dialog_rules.txt); the code below is the built-in fallback
         DialogAgent.Result rr = DialogAgent.apply(d, ctx == null ? DialogAgent.ctx("travel") : ctx, tripTarget, bountyTarget);
         if (rr != null) {

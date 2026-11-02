@@ -84,7 +84,7 @@ public final class Goals {
             if (clicks++ > 40) { pause("too many dialogs (" + clicks + ") - check the game"); return false; }
             AutoDialog.Act a = AutoDialog.handle(d, goalTarget, ctx, bounty);
             if (a != null) {
-                EventLog.info("dialog", a.note);
+                if (!a.note.isEmpty()) EventLog.info("dialog", a.note);
                 waitUntil = now + 1200L;
                 return true;
             }
