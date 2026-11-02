@@ -56,6 +56,8 @@ public class BountyRunner implements EveryFrameScript {
     private long waitUntil = 0L, lastInbox = 0L, phaseStartTs;
     private int clicks = 0;
     private SectorEntityToken restAt;
+    /** 1.0.9: the player took this target with 'hunt <n> anyway' (margin waived for this hunt). */
+    boolean playerOverride = false;
     private boolean recoveryShown = false;
     private boolean departChecked = false; // 1.0.8: round trip verified before the fleet leaves
     private Phase pausedFrom = Phase.IDLE;
@@ -323,6 +325,7 @@ public class BountyRunner implements EveryFrameScript {
         if (a.startsWith("auto")) {
             String[] p = a.split("\\s+");
             instance.huntsLeft = p.length > 1 ? Math.max(1, Integer.parseInt(p[1])) : 1;
+            instance.playerOverride = false;
             pick = best(ts);
             if (pick == null) { instance.huntsLeft = 0; return "no bounty passes the rules now\n" + list(); }
         } else {
@@ -337,6 +340,7 @@ public class BountyRunner implements EveryFrameScript {
             pick = ts.get(n - 1);
             if (!pick.ok && !anyway) return "bounty " + n + " fails the rules: " + pick.why + " ('hunt " + n + " anyway' asks the player)";
             if (!pick.ok) EventLog.alert("hunt", "hunting " + pick.name + " although it fails the rules (" + pick.why + "): the player's decision");
+            instance.playerOverride = !pick.ok;
             instance.huntsLeft = 1;
         }
         instance.begin(pick);
@@ -562,7 +566,9 @@ public class BountyRunner implements EveryFrameScript {
         if (supplyDays() < Rules.f("hunt_abort_supply_days", 12f)) { pause("supplies down to " + Math.round(supplyDays()) + " days - go resupply"); return; }
         // re-check strength once we can see them
         float ours = ourDP();
-        if (dpOf(target.fleet) * Rules.f("hunt_margin", 1.5f) > ours) { pause("target is stronger than planned: " + Math.round(dpOf(target.fleet)) + " DP vs our " + Math.round(ours)); return; }
+        // 1.0.9: after the player's 'hunt <n> anyway' the margin is waived; still stop if they outgun the whole fleet
+        float margin = playerOverride ? 1.0f : Rules.f("hunt_margin", 1.5f);
+        if (dpOf(target.fleet) * margin > ours) { pause("target is stronger than planned: " + Math.round(dpOf(target.fleet)) + " DP vs our " + Math.round(ours)); return; }
         if (sector().getClock().getElapsedDaysSince(phaseStartTs) > 90f) { pause("not reached after 90 days"); return; }
         if (sector().isPaused()) Governor.unpause();
         // exploration detour on the way (in-system legs only)
