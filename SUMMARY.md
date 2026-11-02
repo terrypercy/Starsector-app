@@ -99,6 +99,9 @@ Build: `C=<starsector-core> OUT=<out> bash tools/test.sh`.
 - Still open: the Hegemony turned hostile around Jul 22 in the first run, because of the Hegemony-Luddic
   Church war (the player holds a Church commission). `gov_threat_ratio` was raised to 1.2 in the rules file to
   get past one Luddic Path Holy Armada (238 DP vs our 209); set it back to 1.0 afterwards.
+- **Holy Armada intercept.** The Armada still caught the fleet; at 18 ships it was too big to disengage
+  normally. With the player's explicit OK, Claude clicked the 1-story-point "special maneuvers" escape (+250,000
+  bonus XP), and the Temitope hunt resumed.
 
 ## The player's standing rules (enforced by the mod where possible)
 No cheats. Never spend story points (the player clicks them). Ask before big purchases, progression steps and
