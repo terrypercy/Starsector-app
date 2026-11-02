@@ -4,7 +4,7 @@
 batches to an inbox; the mod runs them as goals (travel, dock, resupply, repair, hire, commission, hunt,
 trade, explore), answers routine dialogs, and reports to an event log and state file.
 **Repo:** terrypercy/starsector-app. Docs: README.md, DESIGN.md, MIGRATION.md, SUMMARY.md.
-**Version:** 1.0.9 on `main`. Live game runs build 441396e; c4fedc5 and 7395786 not yet installed.
+**Version:** 1.0.9 on `main`. Live game updated to c4fedc5 or newer on Nov 2 (was 441396e).
 **Build/test:** `C=<starsector-core> OUT=<out> bash tools/test.sh` (228 unit tests + planner, reader/trader, advisor, trade suites).
 
 ## History
@@ -18,6 +18,9 @@ trade, explore), answers routine dialogs, and reports to an event log and state 
 - Found/fixed: false pause hold on load; detours not salvaging.
 - Game froze 65 s into the battle (main loop stalled, JVM alive). Likely memory: Xmx 2 GB, PC at 94-97% RAM.
   Restarted locally (Nov 2). Last save was May 20 in-game date, before the hunt.
+
+## Nov 2
+- Installed latest build, raised vmparams memory limit, switched on the freeze watchdog.
 
 ## Open items
 Tracked in TASKS.md.

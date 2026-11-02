@@ -21,8 +21,8 @@ Terry (terrypercy on GitHub). Plays a single-player Starsector campaign and buil
 | preflight | Read-only GO/NO-GO check before a hunt or market run |
 | `#since` | Event number every inbox batch must cite |
 | hunt / trip | Bounty hunt goal / trade run goal |
-| vmparams / Xmx | Starsector's JVM memory setting (currently 2 GB) |
-| watchdog | `tools/watchdog` script that restarts a frozen game |
+| vmparams / Xmx | Starsector's JVM memory setting (was 2 GB; raised Nov 2) |
+| watchdog | `tools/watchdog` script that restarts a frozen game (switched on Nov 2) |
 
 ## Projects
 | Name | What |

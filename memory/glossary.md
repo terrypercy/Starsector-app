@@ -35,4 +35,4 @@
 | ETA x2 | Hunts plan for twice the game's ETA (confirmed: 27 days vs 10) |
 | AI core | Needed to crew automated ships (Onslaught Mk.I has none) |
 | Explore / Assess | The game's salvage buttons (wrecks, derelicts, stations / debris) |
-| vmparams / Xmx | JVM memory config; Xmx = max heap (2 GB now) |
+| vmparams / Xmx | JVM memory config; Xmx = max heap (was 2 GB, raised Nov 2) |
