@@ -49,4 +49,14 @@ public final class ColonyMath {
     public static float rank(float score, float hazardPct) {
         return score / Math.max(50f, hazardPct) * 100f;
     }
+
+    /**
+     * 1.0.9: whether a colony here is safe from the claiming faction (the game's colony screen: a system claimed by a
+     * territorial faction is off limits - "a colony established here would likely be eradicated" - unless the player
+     * holds that faction's commission). claimId null = unclaimed.
+     */
+    public static boolean claimAllows(String claimId, String commissionId) {
+        if (claimId == null || claimId.isEmpty() || claimId.equals("player")) return true;
+        return claimId.equals(commissionId);
+    }
 }

@@ -558,6 +558,11 @@ public class CaptainTest {
         check(ColonyMath.resources(Arrays.asList("hot", "no_atmosphere")).equals("no deposits"), "colony: no deposits");
         check(ColonyMath.rank(8f, 175f) > ColonyMath.rank(6f, 175f), "colony rank: more resources first");
         check(ColonyMath.rank(8f, 150f) > ColonyMath.rank(8f, 250f), "colony rank: lower hazard first");
+        check(ColonyMath.claimAllows(null, "luddic_church"), "colony claim: unclaimed system is fine");
+        check(ColonyMath.claimAllows("luddic_church", "luddic_church"), "colony claim: commission faction's system is fine");
+        check(!ColonyMath.claimAllows("persean", "luddic_church"), "colony claim: Netzach (Persean claim, Church commission) is off limits");
+        check(!ColonyMath.claimAllows("persean", null), "colony claim: claimed system without a commission is off limits");
+        check(ColonyMath.claimAllows("player", null), "colony claim: own system is fine");
         check(Guard.keepFloor("metals 50", "metals", "Metals") == 50, "keep: 'metals 50' typo form");
         // inbox gate
         List<String> go = Arrays.asList("go Hesperus");
