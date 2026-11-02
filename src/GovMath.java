@@ -40,6 +40,11 @@ public final class GovMath {
         public int shipsLostOutsideBattle;
         public float worstHullDropOutsideBattle;
         public String incidentShip = "";
+        /** 1.0.9: supplies used per day right now, repairs and CR recovery included. */
+        public float burnPerDay;
+        /** 1.0.9: CR-draining terrain the fleet is in (event horizon, corona, pulsar beam), and for how long. */
+        public String hazard;
+        public float hazardDays;
         // rules
         public float minSupplyDays = 15f, fuelMarginPct = 25f, fuelMarginLy = 2f, minCR = 0.40f, threatRatio = 1.0f;
     }
@@ -70,12 +75,22 @@ public final class GovMath {
         return (ly * (1f + marginPct / 100f) + marginLy) * Math.max(0f, fuelPerLy);
     }
 
+    /** Days of supplies at the current burn below which the burn alarm fires. */
+    public static final float BURN_WARN_DAYS = 7f;
+
     public static List<Alarm> check(Input in) {
         List<Alarm> out = new ArrayList<Alarm>();
         float days = supplyDays(in.supplies, in.maintPerDay);
         int tier = supplyTier(days, in.minSupplyDays);
         if (tier > 0) out.add(new Alarm("supplies:" + tier, tier == 4 ? "supplies are gone: ships lose CR and suffer accidents"
                 : "supplies for " + Math.round(days) + " days of maintenance (minimum " + Math.round(in.minSupplyDays) + ")"));
+        // 1.0.9 (Nov 1): repairs and CR recovery after a fight can burn 8x maintenance; warn before they empty the hold
+        float burnDays = supplyDays(in.supplies, in.burnPerDay);
+        if (tier == 0 && in.burnPerDay > in.maintPerDay * 1.5f && burnDays < BURN_WARN_DAYS)
+            out.add(new Alarm("supplies:burn", "supplies last " + Math.round(burnDays) + " days at the current burn of "
+                    + Math.round(in.burnPerDay) + "/day (repairs and CR recovery); maintenance alone is " + Math.round(in.maintPerDay) + "/day"));
+        if (in.hazard != null && Hazard.loitering(in.hazardDays))
+            out.add(new Alarm("hazard", "the fleet has been inside " + in.hazard + " for " + Math.round(in.hazardDays) + " day(s): it drains combat readiness"));
         if (!in.docked && in.nearestFriendlyLy >= 0f) {
             float need = TravelMath.fuelWithMargin(in.nearestFriendlyLy, in.nearestFriendlyJumps, in.fuelPerLy, in.fuelMarginPct, in.fuelMarginLy);
             if (in.fuel < need) out.add(new Alarm("fuel", "fuel " + Math.round(in.fuel) + " but reaching " + in.nearestFriendlyName + " ("

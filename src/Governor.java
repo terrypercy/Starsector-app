@@ -153,6 +153,9 @@ public final class Governor {
 
     // ------------------------------------------------------------------ per frame (from Captain)
 
+    /** 1.0.9: when the fleet entered CR-draining terrain (0 = not inside). */
+    private static long hazardSinceTs = 0L;
+
     public static void tick() {
         try { watchPlayerPause(); } catch (Throwable ignored) {}
         SectorAPI s = sector();
@@ -262,6 +265,11 @@ public final class Governor {
         float sinceBattle = lastBattleTs == 0L ? 999f : sector().getClock().getElapsedDaysSince(lastBattleTs);
         in.lowCrExpected = Captain.lowCrExpected() || sinceBattle < 3f;
         in.ourDP = BountyRunner.ourDP();
+        try { in.burnPerDay = burnPerDay(pf); } catch (Throwable ignored) {}
+        in.hazard = Hazard.at(pf);
+        if (in.hazard == null) hazardSinceTs = 0L;
+        else if (hazardSinceTs == 0L) hazardSinceTs = sector().getClock().getTimestamp();
+        in.hazardDays = hazardSinceTs == 0L ? 0f : sector().getClock().getElapsedDaysSince(hazardSinceTs);
 
         // threats: visible hostile fleets stronger than us that got closer since the last check
         if (pf.getContainingLocation() != null) {

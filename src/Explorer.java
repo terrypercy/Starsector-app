@@ -80,6 +80,8 @@ public final class Explorer {
                     if (ruins) s.cost += (s.cost.length() > 0 ? "; " : "") + "ruins (" + ruinsLevel(m) + "): need a colony to explore";
                 }
                 if (s == null) continue;
+                // 1.0.9: never detour into terrain that drains CR (Nov 1: wrecks inside a black hole's event horizon)
+                if (Hazard.at(e) != null) continue;
                 s.dist = Misc.getDistance(pf, e);
                 MemoryAPI mem = e.getMemoryWithoutUpdate();
                 boolean has = mem != null && mem.getBoolean("$hasDefenders") && !mem.getBoolean("$defenderFleetDefeated");
@@ -101,7 +103,8 @@ public final class Explorer {
     public static ExploreMath.Site next(SectorEntityToken dest, Set<String> extraVisited) {
         if (!Rules.b("explore", true)) return null;
         CampaignFleetAPI pf = Global.getSector().getPlayerFleet();
-        float days = GovMath.supplyDays(pf.getCargo().getSupplies(), Governor.maintPerDay(pf));
+        // 1.0.9: count repairs and CR recovery too - right after a fight they can burn 8x maintenance (Nov 1)
+        float days = GovMath.supplyDays(pf.getCargo().getSupplies(), Math.max(Governor.maintPerDay(pf), Governor.burnPerDay(pf)));
         if (days < Rules.f("explore_min_supply_days", 25f)) return null;
         if (Governor.latch.active().size() > 0) return null;
         Float tx = null, ty = null;

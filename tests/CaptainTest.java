@@ -467,6 +467,24 @@ public class CaptainTest {
         List<DialogRules.Opt> none = new ArrayList<DialogRules.Opt>();
         String lootSig = "type=derelict target=Derelict Ship faction=neutral hostile=no useful=no scan=no illegal=no bounty=no stronger=no salvage=yes loot=yes target_goal=yes opts=[] text=Begin salvage operations";
         check("loot".equals(chosen(dr, Arrays.asList("explore", "after_battle"), lootSig, none)), "salvage loot screen with no options: loot is taken");
+        // Nov 1: the fleet rested inside a black hole's event horizon; CR to 0 and supplies 113 -> 0 in two days
+        check(Hazard.drainsCR("event_horizon") && Hazard.drainsCR("corona") && Hazard.drainsCR("pulsar_beam"), "hazard: event horizon, corona, pulsar beam drain CR");
+        check(!Hazard.drainsCR("nebula") && !Hazard.drainsCR("debris_field") && !Hazard.drainsCR(null), "hazard: nebula and debris don't");
+        GovMath.Input hz = new GovMath.Input();
+        hz.supplies = 113f; hz.maintPerDay = 7.7f; hz.burnPerDay = 63.7f; hz.minSupplyDays = 15f;
+        boolean burnAlarm = false, hazAlarm = false;
+        for (GovMath.Alarm al : GovMath.check(hz)) { if (al.key.equals("supplies:burn")) burnAlarm = true; if (al.key.equals("hazard")) hazAlarm = true; }
+        check(!burnAlarm, "burn alarm: not when the maintenance alarm already covers it (113 sup = 14.7 days)");
+        hz.supplies = 300f;
+        for (GovMath.Alarm al : GovMath.check(hz)) if (al.key.equals("supplies:burn")) burnAlarm = true;
+        check(burnAlarm, "burn alarm: 300 supplies at 63.7/day (repairs) is under 7 days");
+        hz.hazard = "Event Horizon"; hz.hazardDays = 0.5f;
+        for (GovMath.Alarm al : GovMath.check(hz)) if (al.key.equals("hazard")) hazAlarm = true;
+        check(!hazAlarm, "hazard alarm: passing through is fine");
+        hz.hazardDays = 1.2f;
+        for (GovMath.Alarm al : GovMath.check(hz)) if (al.key.equals("hazard")) hazAlarm = true;
+        check(hazAlarm, "hazard alarm: a day inside stops the fleet");
+        check(!GovMath.routine("hazard", true, 0f, 0.4f), "hazard alarm always pauses, even heading to a market");
         List<DialogRules.Opt> rec = opts("Consider ship recovery", "Not now");
         String recSig = "type=derelict target=Derelict Ship faction=neutral hostile=no useful=no scan=no illegal=no bounty=no stronger=no salvage=yes loot=no target_goal=yes " + DialogRules.optsField(rec) + " text=Explore";
         check("Not now".equals(chosen(dr, Arrays.asList("explore", "after_battle"), recSig, rec)), "derelict on a detour: passed on, then salvaged");

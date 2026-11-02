@@ -734,7 +734,7 @@ public class BountyRunner implements EveryFrameScript {
             sector().layInCourseFor(restAt);
         }
         if (sector().isPaused()) Governor.unpause();
-        if (maybeExplore(restAt, Phase.REST)) return;
+        // 1.0.9: no exploration detours while resting - repairs need the supplies and salvage spends them (Nov 1)
         if (lowestCombatCR() >= Rules.f("hunt_rest_cr", 0.7f)) {
             restAt = null;
             log("combat readiness " + Math.round(lowestCombatCR() * 100f) + "%: ready");
