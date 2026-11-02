@@ -267,6 +267,8 @@ public final class Governor {
         for (MarketAPI m : sector().getEconomy().getMarketsCopy()) {
             if (m.isHidden() || m.getPrimaryEntity() == null || m.getFaction().isHostileTo("player")) continue;
             if (m.getSubmarket("open_market") == null && m.getSubmarket("black_market") == null) continue;
+            // 1.1.5 (Nov 2): an inhospitable faction refuses docking with the transponder on (Tigra City, Hegemony)
+            try { if (m.getFaction().isAtBest(com.fs.starfarer.api.impl.campaign.ids.Factions.PLAYER, com.fs.starfarer.api.campaign.RepLevel.INHOSPITABLE) && !m.isFreePort()) continue; } catch (Throwable ignored) {}
             float ly = Misc.getDistanceToPlayerLY(m.getPrimaryEntity());
             // 1.0.7: rank by fuel, so the jump points on the way count
             LocationAPI there = m.getPrimaryEntity().getContainingLocation();
@@ -354,7 +356,8 @@ public final class Governor {
         for (GovMath.Alarm a : fresh) {
             // 1.0.5: routine alarms (supplies/fuel while a goal already heads to a market, storm hull scrapes)
             // are logged, not paused on: every pause cost a round trip with nothing to decide
-            if (armed && ((a.key.equals("cr") && in.docked) || (!Rules.b("gov_pause_routine", false)
+            // 1.1.5: the supply guard handles a high repair burn itself; the burn alarm re-fired and paused at every change of the burn
+            if (armed && ((a.key.equals("cr") && in.docked) || (a.key.equals("supplies:burn") && Rules.b("gov_supply_guard", true)) || (!Rules.b("gov_pause_routine", false)
                     && GovMath.routine(a.key, toMarket, in.worstHullDropOutsideBattle, Rules.f("gov_incident_pause_pct", 40f) / 100f)))) {
                 EventLog.warn("gov", a.text + " (routine: not paused" + (toMarket ? ", already heading to a market" : "") + ")");
                 continue;
