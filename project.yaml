@@ -64,3 +64,13 @@ platform:
 commands:                    # C = starsector-core folder, OUT = build output folder
   build: "C=<starsector-core> OUT=out bash tools/build.sh"
   test: "C=<starsector-core> OUT=out bash tools/test.sh"
+
+naming:
+  classes: PascalCase
+  variables: camelCase
+  constants: SCREAMING_SNAKE
+  files: PascalCase
+
+performance:
+  memory_ceiling_mb: 2048
+  enforce: warn
