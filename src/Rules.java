@@ -93,7 +93,7 @@ public final class Rules {
       + "show_trips = 3\n"
       + "\n"
       + "# --- bounty hunting\n"
-      + "hunt_margin = 1.25            # LOCKED (player's choice, Nov 1): hunt only targets whose DP x this are under ours\n"
+      + "hunt_margin = 1.1             # LOCKED (player's choice, Nov 2: 1.1x, was 1.25x): hunt only targets whose DP x this are under ours\n"
       + "hunt_min_cr = 0.6             # rest first when a combat ship is under this CR\n"
       + "hunt_rest_cr = 0.7            # after a fight, rest near a friendly market until this CR\n"
       + "hunt_max_ly = 20              # skip bounties farther than this\n"
