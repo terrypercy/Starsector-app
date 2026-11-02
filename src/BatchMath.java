@@ -51,7 +51,12 @@ public final class BatchMath {
     public static List<List<String>> split(List<String> lines, boolean goalUnfinished, boolean dockedNow) {
         List<String> now = new ArrayList<String>(), queue = new ArrayList<String>(), replace = new ArrayList<String>();
         boolean startsGoal = false;
-        for (String l : lines) if (GOAL.equals(kind(l, dockedNow))) { startsGoal = true; break; }
+        for (String l : lines) {
+            // 1.0.9 (Nov 2): 'hunt resume anyway' waits for the popup like a goal, but it resumes the paused hunt -
+            // it must not replace (cancel) it
+            if (l != null && l.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").equals("hunt resume anyway")) continue;
+            if (GOAL.equals(kind(l, dockedNow))) { startsGoal = true; break; }
+        }
         for (String l : lines) {
             String k = kind(l, dockedNow);
             if (GOV.equals(k) || NOW.equals(k)) now.add(l);
