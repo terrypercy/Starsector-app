@@ -327,10 +327,16 @@ public class BountyRunner implements EveryFrameScript {
             if (pick == null) { instance.huntsLeft = 0; return "no bounty passes the rules now\n" + list(); }
         } else {
             int n;
-            try { n = Integer.parseInt(a); } catch (NumberFormatException e) { return "usage: hunt <n> | hunt auto [count] | hunt stop | hunt status"; }
+            // 1.0.9 (Nov 2): "hunt <n> anyway" - the player takes a bounty the rules rate too strong or too far.
+            // It always goes through the in-game Yes popup first (BatchMath.needsApproval), and the fuel/supply
+            // departure gate still applies.
+            boolean anyway = a.endsWith(" anyway");
+            String num = anyway ? a.substring(0, a.length() - " anyway".length()).trim() : a;
+            try { n = Integer.parseInt(num); } catch (NumberFormatException e) { return "usage: hunt <n> [anyway] | hunt auto [count] | hunt stop | hunt status"; }
             if (n < 1 || n > ts.size()) return "no bounty " + n + " (see 'bounties')";
             pick = ts.get(n - 1);
-            if (!pick.ok) return "bounty " + n + " fails the rules: " + pick.why;
+            if (!pick.ok && !anyway) return "bounty " + n + " fails the rules: " + pick.why + " ('hunt " + n + " anyway' asks the player)";
+            if (!pick.ok) EventLog.alert("hunt", "hunting " + pick.name + " although it fails the rules (" + pick.why + "): the player's decision");
             instance.huntsLeft = 1;
         }
         instance.begin(pick);

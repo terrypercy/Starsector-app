@@ -104,6 +104,7 @@ public final class BatchMath {
         if (c.equals("sellship") && t.contains("confirm")) return true;
         if (c.equals("buyship") || c.equals("restore") || c.equals("buyspec") || c.equals("hire")) return true;
         if (c.equals("hunt") && l.equals("hunt resume anyway")) return true;
+        if (c.equals("hunt") && l.matches("hunt \\d+ anyway")) return true; // 1.0.9: a bounty the rules reject
         return false;
     }
 }

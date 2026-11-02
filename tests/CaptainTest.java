@@ -480,6 +480,7 @@ public class CaptainTest {
         for (int i = 0; i < GovMath.Latch.THREAT_ACK_GRACE; i++) lt.update(GovMath.check(th));
         th.threatClosing = true;
         check(lt.update(GovMath.check(th)).size() == 1, "a threat that went quiet for long fires again");
+        check(BatchMath.needsApproval("hunt 5 anyway") && !BatchMath.needsApproval("hunt 5"), "hunting a rejected bounty needs the player's Yes");
         // Nov 2: the threat alarm cleared while paused (before the 'run' arrived), so 'run' acknowledged nothing
         GovMath.Latch lt2 = new GovMath.Latch();
         GovMath.Input t2 = new GovMath.Input();
