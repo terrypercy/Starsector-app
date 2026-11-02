@@ -544,7 +544,7 @@ team.size::individual|small|studio
 performance.enforce::warn|block|off
 platform.cert_tier::none|itch|steam|console
 accessibility.target::none|standard|aaa
-engine.name::Godot|Unity|Unreal
+engine.name::Godot|Unity|Unreal|Starsector
 project.stage::Concept|Systems Design|Technical Setup|Pre-Production|Production|Polish|Release
 testing.strict.logic::true|false
 testing.strict.integration::true|false
