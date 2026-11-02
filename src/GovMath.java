@@ -1,6 +1,7 @@
 package claudecaptain;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -111,6 +112,8 @@ public final class GovMath {
     public static final class Latch {
         private final Map<String, String> fired = new LinkedHashMap<String, String>();
         private final Set<String> acked = new HashSet<String>();
+        private final Map<String, Integer> quiet = new HashMap<String, Integer>();
+        public static final int THREAT_ACK_GRACE = 120;
 
         /** Alarms that are active now and have not fired yet. Cleared alarms are forgotten. */
         public List<Alarm> update(List<Alarm> active) {
@@ -122,7 +125,20 @@ public final class GovMath {
                 if (!fired.containsKey(a.key) && !acked.contains(a.key)) { fresh.add(a); fired.put(a.key, a.text); }
             }
             fired.keySet().retainAll(now);
-            acked.retainAll(now);
+            // 1.0.9 (Nov 1): a threat's "closing in" flickers off while paused, which dropped the acknowledgement and
+            // re-fired the same alarm after every 'run'. An acknowledged threat stays acknowledged until it has been
+            // quiet for THREAT_ACK_GRACE checks in a row; other alarms are forgotten as soon as they clear.
+            for (java.util.Iterator<String> it = acked.iterator(); it.hasNext();) {
+                String k = it.next();
+                if (now.contains(k)) { quiet.remove(k); continue; }
+                if (k.startsWith("threat:")) {
+                    Integer q = quiet.get(k);
+                    int n = q == null ? 1 : q + 1;
+                    if (n < THREAT_ACK_GRACE) { quiet.put(k, n); continue; }
+                }
+                quiet.remove(k);
+                it.remove();
+            }
             return fresh;
         }
 

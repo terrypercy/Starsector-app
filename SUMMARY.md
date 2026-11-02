@@ -6,7 +6,8 @@ dock, resupply, hunt bounties, trade, explore), answers routine dialogs by edita
 everything to an event log and a state file. A governor only lets game time pass inside a granted run
 budget. See README.md (commands, panel), DESIGN.md and MIGRATION.md.
 
-Current version: **1.0.9** (latest commit on `main`). Installed in the live game: build 441396e.
+Current version: **1.0.9** (latest commit on `main`). Installed in the live game: build a4228f2; the threat-acknowledgement fix
+(newer) goes in at the next game restart.
 
 ## What 1.0.9 changed and why
 
@@ -53,12 +54,20 @@ BountyGuard now only raises an alert when a bounty the fleet killed ends unpaid.
 - `flagship <ship>`.
 - `dialog close`.
 
-**Later fixes (in `main`, not yet installed)**
-- c4fedc5: exploration detours now salvage. The game's buttons are "Explore" and "Assess"; this rule
-  is already live through `dialog_rules.txt`.
+**Later fixes**
+- c4fedc5: exploration detours now salvage. The game's buttons are "Explore" and "Assess".
 - 7395786: no false "player paused" hold when a save loads paused.
+- a30c21c: salvage loot screens (no readable options) are taken by the loot rule, and an empty dialog gets
+  5 s to settle before it counts as stuck.
+- f379773: derelict ships found on detours are passed on and salvaged, not recovered (the player's call);
+  the player's own disabled ships after a battle still stop and ask.
+- a4228f2: terrain guard. Explore detours skip sites inside CR-draining terrain (event horizon, star corona,
+  pulsar beam); the governor stops the fleet after a day inside it; resting no longer detours; a new supply
+  alarm counts the repair and CR-recovery burn, not only maintenance.
+- latest: an acknowledged threat no longer re-fires after every `run` (its "closing in" flag flickered off
+  while paused and wiped the acknowledgement).
 
-Tests: 228 unit tests plus the planner, reader/trader, advisor and trade suites, all passing.
+Tests: 243 unit tests plus the planner, reader/trader, advisor and trade suites, all passing.
 Build: `C=<starsector-core> OUT=<out> bash tools/test.sh`.
 
 ## Live test, Nov 1 (hunt for Francis Craft)
@@ -70,16 +79,45 @@ Build: `C=<starsector-core> OUT=<out> bash tools/test.sh`.
   RAM. Windows blocks remote input to the frozen window and to Task Manager, so it needs a local restart.
   The last save is May 20, right before the hunt.
 
+## Live play, Nov 1 evening
+- **Freeze cause found, and it wasn't memory.** The crash report (hs_err) shows an access violation in the
+  Intel Arc graphics driver while drawing a ship in combat, with only 357 MB of the 2 GB heap in use. The
+  `-XX:+ShowMessageBoxOnError` flag in vmparams made Java wait on a hidden error box for 11 hours. The driver
+  was updating while the game ran; the player has since updated it. The memory limit was left as is.
+- **Bounties now pay the normal way.** Francis Craft (193,500 cr) and Temitope Alcor (180,000 cr) were both
+  paid by the game itself (`END_PLAYER_BOUNTY`) after the battles closed properly. This confirms the
+  battle-closing fix.
+- **Event horizon incident.** After the Alcor fight the hunt "rested" while detouring to wrecks inside a
+  black hole's event horizon. Every ship fell to 0% CR, and CR recovery burned 113 supplies to 0 in two days.
+  The player chose to reload the Jun 21 save (after Francis was paid). The terrain guard (a4228f2) was built
+  and installed first.
+- **Fleet check against the mid-game guide.** The shape fits: 1 capital (Onslaught Mk.I), 4 cruisers, 5
+  destroyers, 3 Brawler screens and a Salvage Rig. Gaps: d-mods (Onslaught 4, Sunder Danu 4, Tempest 3), no AI
+  core for the automated Onslaught, and the spare officer (now on a Brawler). Approved plan: redo the Temitope
+  hunt, then a Mazalot refit stop (supplies, repairs and restore quotes, all on the player's Yes) and an AI
+  core search.
+- Still open: the Hegemony turned hostile around Jul 22 in the first run, because of the Hegemony-Luddic
+  Church war (the player holds a Church commission). `gov_threat_ratio` was raised to 1.2 in the rules file to
+  get past one Luddic Path Holy Armada (238 DP vs our 209); set it back to 1.0 afterwards.
+
+## The player's standing rules (enforced by the mod where possible)
+No cheats. Never spend story points (the player clicks them). Ask before big purchases, progression steps and
+every ship sale. Supplies are bought only on the player's in-game Yes. Keep 50 metals and 50 heavy machinery.
+Price limits follow the market. Never leave without fuel and supplies for the round trip. Save before big
+actions. Stop when told. Anything worked out by hand gets built into the mod.
+
 ## Recovering from freezes: `tools/watchdog`
 `starsector_watchdog.ps1` runs every 2 minutes and ends Starsector only if its window stays "Not
-responding" for 3 checks, then reopens the launcher. Switch it on once by double-clicking
+responding" for 3 checks, then reopens the launcher. It matches the game by folder and window rather than by
+title, so it also catches a crash that leaves Java's error box up. Switch it on once by double-clicking
 `install_watchdog.bat` (keep both files in one folder). Switch it off with
 `schtasks /delete /tn "Starsector Watchdog" /f`.
 
 ## Open items
-- Install the latest build: c4fedc5 or newer.
-- Raise Starsector's memory limit (vmparams), with the player's approval.
-- An optional in-game self-shutdown when the main loop stalls.
+- Install the newest build at the next restart (the threat-acknowledgement fix).
+- The watchdog files are in `mods\Claude Captain\watchdog\`; double-click `install_watchdog.bat` once.
+- Consider removing `-XX:+ShowMessageBoxOnError` from vmparams so a crash exits instead of hanging.
+- Preflight's supply estimate doesn't include post-battle repair and CR-recovery burn yet.
 - The Onslaught Mk.I has no AI core. No colony yet (the guide says to found one at 500k-1M credits).
 - Plain `travel`/`dock` goals still have no fuel gate.
 - The agent could still click the approval popup through screen control; it must not.

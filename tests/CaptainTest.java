@@ -467,6 +467,19 @@ public class CaptainTest {
         List<DialogRules.Opt> none = new ArrayList<DialogRules.Opt>();
         String lootSig = "type=derelict target=Derelict Ship faction=neutral hostile=no useful=no scan=no illegal=no bounty=no stronger=no salvage=yes loot=yes target_goal=yes opts=[] text=Begin salvage operations";
         check("loot".equals(chosen(dr, Arrays.asList("explore", "after_battle"), lootSig, none)), "salvage loot screen with no options: loot is taken");
+        // Nov 1: an acknowledged threat re-fired after every 'run' because "closing" flickered off while paused
+        GovMath.Latch lt = new GovMath.Latch();
+        GovMath.Input th = new GovMath.Input();
+        th.supplies = 700f; th.maintPerDay = 7.7f; th.ourDP = 209f; th.threatDP = 238f; th.threatName = "Holy Armada"; th.threatClosing = true;
+        check(lt.update(GovMath.check(th)).size() == 1, "threat alarm fires once");
+        lt.ack();
+        th.threatClosing = false; lt.update(GovMath.check(th));
+        th.threatClosing = true;
+        check(lt.update(GovMath.check(th)).isEmpty(), "acknowledged threat doesn't re-fire after a flicker");
+        th.threatClosing = false;
+        for (int i = 0; i < GovMath.Latch.THREAT_ACK_GRACE; i++) lt.update(GovMath.check(th));
+        th.threatClosing = true;
+        check(lt.update(GovMath.check(th)).size() == 1, "a threat that went quiet for long fires again");
         // Nov 1: the fleet rested inside a black hole's event horizon; CR to 0 and supplies 113 -> 0 in two days
         check(Hazard.drainsCR("event_horizon") && Hazard.drainsCR("corona") && Hazard.drainsCR("pulsar_beam"), "hazard: event horizon, corona, pulsar beam drain CR");
         check(!Hazard.drainsCR("nebula") && !Hazard.drainsCR("debris_field") && !Hazard.drainsCR(null), "hazard: nebula and debris don't");
