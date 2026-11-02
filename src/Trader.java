@@ -170,9 +170,13 @@ public final class Trader {
      * 1.0.9: the most one unit of supplies/fuel may cost (incl. tariff): the median price across known friendly markets
      * x supply_price_factor / fuel_price_factor, so it follows the market. A fixed max_*_price > 0 overrides. -1 = no limit.
      */
+    /** 1.0.9: a one-buy price cap the player approved ("buy supplies 200 at 146"); -1 when none. */
+    static volatile float playerCap = -1f;
+
     static float ceiling(String id) {
         boolean sup = "supplies".equals(id), fuel = "fuel".equals(id);
         if (!sup && !fuel) return -1f;
+        if (playerCap > 0f) return playerCap;
         java.util.List<Float> seen = new java.util.ArrayList<Float>();
         try {
             for (MarketAPI x : Global.getSector().getEconomy().getMarketsCopy()) {

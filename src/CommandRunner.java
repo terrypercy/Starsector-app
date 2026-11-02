@@ -75,7 +75,21 @@ public class CommandRunner {
         if (cmd.equals("teleport")) return teleport(a);
         if (cmd.equals("dock")) return dock(a);
         if (cmd.equals("sell")) return trade(a, false);
-        if (cmd.equals("buy")) return trade(a, true);
+        if (cmd.equals("buy")) {
+            // 1.0.9 (Nov 2): "buy supplies 200 at 146" - the player approves one buy above the market ceiling.
+            // 'buy supplies' always goes through the in-game Yes popup first, so this is the player's call, once.
+            int at = -1;
+            for (int i = 0; i + 1 < a.size(); i++) if (a.get(i).equalsIgnoreCase("at") && isNum(a.get(i + 1))) at = i;
+            if (at >= 0) {
+                float capOnce = (float) num(a.get(at + 1));
+                List<String> rest = new ArrayList<String>(a.subList(0, at));
+                rest.addAll(a.subList(at + 2, a.size()));
+                Trader.playerCap = capOnce;
+                try { return trade(rest, true) + "\n(player-approved price cap " + Math.round(capOnce) + "/unit for this buy)"; }
+                finally { Trader.playerCap = -1f; }
+            }
+            return trade(a, true);
+        }
         if (cmd.equals("prices")) return prices(a);
         if (cmd.equals("market") || cmd.equals("info")) return marketInfo(a);
         if (cmd.equals("find")) return find(a);

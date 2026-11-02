@@ -254,7 +254,7 @@ public class Captain implements EveryFrameScript {
             try {
                 String low = l.toLowerCase(Locale.ROOT);
                 if (low.startsWith("sellship")) detail = "\n" + Shipyard.sellShip(l.substring(8).replaceAll("(?i)\\bconfirm\\b", "").trim());
-                else if (low.startsWith("resupply") || low.startsWith("buy")) detail = "\nsupplies " + Math.round(sector().getPlayerFleet().getCargo().getSupplies())
+                else if (low.startsWith("resupply") || low.startsWith("buy supp")) detail = "\nsupplies " + Math.round(sector().getPlayerFleet().getCargo().getSupplies())
                         + " aboard; price ceiling " + Math.round(Trader.ceiling("supplies")) + "/unit";
             } catch (Throwable ignored) {}
             List<String> yn = new ArrayList<String>();
