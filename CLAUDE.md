@@ -13,9 +13,11 @@ Claude Code Game Studios framework: 49 coordinated subagents, each owning a doma
 - **Tests**: `C=<starsector-core> OUT=<out> bash tools/test.sh` (plain Java test classes in `tests/`)
 - **Asset Pipeline**: none -- the mod ships code and text config only (`data/`)
 
-> **Note**: The studio's engine specialists (Godot, Unity, Unreal) do not apply to this
-> project. Code work routes to `lead-programmer` / `gameplay-programmer`; see
-> `specialists` in `project.yaml`.
+> **Java track**: the studio is built for Godot, Unity and Unreal. This mod uses a separate
+> Java track beside it: `java-specialist` / `starsector-specialist` agents, `/java-test`,
+> `/java-guardrail-review`, `/java-live-check`, `/java-release`. **Read
+> `.claude/java/README.md` first** — it says which studio step to use as is and which the
+> Java track replaces.
 
 ## Project Structure
 

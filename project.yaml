@@ -38,13 +38,19 @@ engine:
   version: "0.98a-RC8"
   language: "Java"
 
-specialists:                 # no Starsector specialist exists
-  code: "lead-programmer"
+specialists:                 # the Java track's agents (.claude/java/README.md)
+  code: "java-specialist"
   ui: "ui-programmer"
-  additional: ["gameplay-programmer"]
+  additional: ["starsector-specialist", "gameplay-programmer"]
 
 testing:
-  framework: "java-main"     # plain Java test classes in tests/, run by tools/test.sh
+  framework: "java-main"     # plain Java test classes in tests/, run by /java-test
+  strict:
+    logic: true              # /java-test FAIL or NOT ASSESSED blocks a Logic story
+    integration: true
+    visual: false            # evidence waits on the player's live check (/java-live-check)
+    ui: false                #   advisory here, but a story is not Done until it is recorded
+    config: false
 
 platform:
   multiplayer: false
