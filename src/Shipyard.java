@@ -97,7 +97,7 @@ public final class Shipyard {
     /** 1.0.7: black-market trade with the transponder on costs standing with the market's faction; such buys are refused. */
     static boolean blackLocked(SubmarketAPI s) {
         return s != null && Submarkets.SUBMARKET_BLACK.equals(s.getSpecId()) && pf().isTransponderOn()
-                && !Rules.b("black_market_with_transponder", false);
+                && !Rules.b("black_market_with_transponder", true);
     }
 
     static String blackLockedMsg(MarketAPI m) {
@@ -346,7 +346,7 @@ public final class Shipyard {
         if (ship != null) for (WeaponSlotAPI sl : ship.getHullSpec().getAllWeaponSlotsCopy())
             if (sl.isWeaponSlot() && !sl.isBuiltIn() && !sl.isDecorative() && !sl.isSystemSlot() && !sl.isStationModule()) slots.add(sl);
         boolean tOn = pf().isTransponderOn();
-        boolean blackOk = Rules.b("black_market_with_transponder", false);
+        boolean blackOk = Rules.b("black_market_with_transponder", true);
         final List<Object[]> hits = new ArrayList<Object[]>(); // {Boolean buyable, Float ly, String line}
         int unseen = 0;
         MarketAPI here = GameReader.dockedMarket();
