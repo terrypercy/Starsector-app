@@ -113,6 +113,7 @@ public final class GovMath {
         private final Map<String, String> fired = new LinkedHashMap<String, String>();
         private final Set<String> acked = new HashSet<String>();
         private final Map<String, Integer> quiet = new HashMap<String, Integer>();
+        private final Map<String, Integer> lapsed = new HashMap<String, Integer>();
         public static final int THREAT_ACK_GRACE = 120;
 
         /** Alarms that are active now and have not fired yet. Cleared alarms are forgotten. */
@@ -122,7 +123,18 @@ public final class GovMath {
             for (Alarm a : active) {
                 now.add(a.key);
                 if (a.key.startsWith("incident:")) { fresh.add(a); continue; } // every incident is news
-                if (!fired.containsKey(a.key) && !acked.contains(a.key)) { fresh.add(a); fired.put(a.key, a.text); }
+                if (!fired.containsKey(a.key) && !acked.contains(a.key) && !lapsed.containsKey(a.key)) { fresh.add(a); fired.put(a.key, a.text); }
+                else if (lapsed.containsKey(a.key)) { fired.put(a.key, a.text); lapsed.remove(a.key); } // same threat, already reported
+            }
+            // 1.0.9: a threat that fired and then flickered off (often while the game sits paused waiting for Claude)
+            // is remembered for THREAT_ACK_GRACE checks, so the acknowledgement that follows still covers it
+            for (String k : new ArrayList<String>(fired.keySet()))
+                if (!now.contains(k) && k.startsWith("threat:")) lapsed.put(k, 0);
+            for (java.util.Iterator<Map.Entry<String, Integer>> it = lapsed.entrySet().iterator(); it.hasNext();) {
+                Map.Entry<String, Integer> e = it.next();
+                if (now.contains(e.getKey())) continue;
+                e.setValue(e.getValue() + 1);
+                if (e.getValue() >= THREAT_ACK_GRACE) it.remove();
             }
             fired.keySet().retainAll(now);
             // 1.0.9 (Nov 1): a threat's "closing in" flickers off while paused, which dropped the acknowledgement and
@@ -143,7 +155,7 @@ public final class GovMath {
         }
 
         /** 'run' acknowledges what has fired: those alarms stay quiet while they last. */
-        public void ack() { acked.addAll(fired.keySet()); fired.clear(); }
+        public void ack() { acked.addAll(fired.keySet()); acked.addAll(lapsed.keySet()); fired.clear(); lapsed.clear(); }
 
         public List<String> active() { return new ArrayList<String>(fired.values()); }
         public Set<String> ackedKeys() { return new HashSet<String>(acked); }

@@ -480,6 +480,20 @@ public class CaptainTest {
         for (int i = 0; i < GovMath.Latch.THREAT_ACK_GRACE; i++) lt.update(GovMath.check(th));
         th.threatClosing = true;
         check(lt.update(GovMath.check(th)).size() == 1, "a threat that went quiet for long fires again");
+        // Nov 2: the threat alarm cleared while paused (before the 'run' arrived), so 'run' acknowledged nothing
+        GovMath.Latch lt2 = new GovMath.Latch();
+        GovMath.Input t2 = new GovMath.Input();
+        t2.supplies = 600f; t2.maintPerDay = 7.7f; t2.ourDP = 209f; t2.threatDP = 238f; t2.threatName = "Holy Armada"; t2.threatClosing = true;
+        check(lt2.update(GovMath.check(t2)).size() == 1, "threat fires");
+        t2.threatClosing = false; lt2.update(GovMath.check(t2)); // flickers off while paused
+        lt2.ack();                                                // then 'run' arrives
+        t2.threatClosing = true;
+        check(lt2.update(GovMath.check(t2)).isEmpty(), "a threat that lapsed before 'run' is still acknowledged by it");
+        GovMath.Latch lt3 = new GovMath.Latch();
+        check(lt3.update(GovMath.check(t2)).size() == 1, "fires");
+        t2.threatClosing = false; lt3.update(GovMath.check(t2));
+        t2.threatClosing = true;
+        check(lt3.update(GovMath.check(t2)).isEmpty(), "an unacknowledged threat isn't re-announced after a flicker either");
         // Nov 1: the fleet rested inside a black hole's event horizon; CR to 0 and supplies 113 -> 0 in two days
         check(Hazard.drainsCR("event_horizon") && Hazard.drainsCR("corona") && Hazard.drainsCR("pulsar_beam"), "hazard: event horizon, corona, pulsar beam drain CR");
         check(!Hazard.drainsCR("nebula") && !Hazard.drainsCR("debris_field") && !Hazard.drainsCR(null), "hazard: nebula and debris don't");
