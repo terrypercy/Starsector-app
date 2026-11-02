@@ -684,7 +684,9 @@ public final class Goals {
                 if (m.isHidden() || m.getPrimaryEntity() == null || m.getFaction().isHostileTo("player")) continue;
                 for (PersonAPI p : people(m)) {
                     if (!postIs(p, Ranks.POST_OFFICER_FOR_HIRE, Ranks.POST_MERCENARY)) continue;
-                    if (want.length() > 0 && !personality(p).toLowerCase().startsWith(want)) continue;
+                    // 1.0.9 (Nov 2): 'hire <name>' works too, not only 'hire <personality>'
+                    if (want.length() > 0 && !personality(p).toLowerCase().startsWith(want)
+                            && !p.getNameString().toLowerCase(java.util.Locale.ROOT).startsWith(want)) continue;
                     float d = Misc.getDistanceToPlayerLY(m.getPrimaryEntity());
                     if (d < bd) { bd = d; market = m; person = p; }
                 }

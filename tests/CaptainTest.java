@@ -565,6 +565,11 @@ public class CaptainTest {
         check(!ColonyMath.claimAllows("persean", "luddic_church"), "colony claim: Netzach (Persean claim, Church commission) is off limits");
         check(!ColonyMath.claimAllows("persean", null), "colony claim: claimed system without a commission is off limits");
         check(ColonyMath.claimAllows("player", null), "colony claim: own system is fine");
+        {   // 1.0.9: the officer's terms screen is accepted (the hire itself was approved on the popup)
+            DialogRules hr = DialogRules.parse(DialogRules.DEFAULTS);
+            List<DialogRules.Opt> terms = opts("\"Sounds good.\"", "\"I've changed my mind.\"");
+            check("\"Sounds good.\"".equals(chosen(hr, Arrays.asList("hire"), sig("market", "hostile=no", terms), terms)), "hire: accept the officer's terms");
+        }
         {   // 1.0.9: every "not docked" approval is kept (live bug Nov 2: only the last of four survived)
             ApprovalBook ab = new ApprovalBook();
             ab.keep("sellship X black confirm", 1000L); ab.keep("buyship Y", 1000L); ab.keep("restore A", 1000L); ab.keep("restore B", 1000L);

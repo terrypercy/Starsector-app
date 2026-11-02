@@ -62,7 +62,7 @@ public final class DialogRules {
       + "\n"
       + "# --- dockyard repair, officers, commissions (sub-dialogs)\n"
       + "repair : match .* -> choose ^(Repair your ships|Confirm|Pay|Have the repairs done|Proceed)\n"
-      + "hire : match .* -> choose ^(Hire|Offer|Accept|Agree|Sign)\n"
+      + "hire : match .* -> choose ^(Hire|Offer|Accept|Agree|Sign|\"Sounds good)\n"
       + "commission : match .* -> choose (?i)(commission|Accept|Sign|Agree)\n"
       + "\n"
       + "# --- hostile fleets that block the way when we are not hunting them\n"
