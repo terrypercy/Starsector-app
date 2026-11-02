@@ -6,4 +6,5 @@ public class LoadAll { public static void main(String[] a) throws Exception {
     String cn = n.replace('/', '.').substring(0, n.length()-6);
     try { Class<?> c = Class.forName(cn, false, LoadAll.class.getClassLoader()); c.getDeclaredMethods(); c.getDeclaredFields(); ok++; }
     catch (Throwable t) { bad++; System.out.println("cannot load " + cn + ": " + t); } } }
-  System.out.println("loaded " + ok + ", failed " + bad); } }
+  System.out.println("loaded " + ok + ", failed " + bad);
+  if (bad > 0 || ok == 0) System.exit(1); } }
