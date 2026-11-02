@@ -305,7 +305,10 @@ public class BountyRunner implements EveryFrameScript {
         if (a.equals("resume anyway")) { // 1.0.9: the player decided to leave short anyway
             if (instance.phase != Phase.PAUSED) return "no paused hunt";
             instance.departChecked = true;
-            EventLog.alert("hunt", "leaving without the full round trip covered: the player's decision");
+            // 1.1.3 (Nov 2): it also waives the strength margin, like 'hunt <n> anyway' (Shepherd at 271 DP vs our 297
+            // tripped 1.1x by one point and 'hunt resume' re-paused on it); a target stronger than the whole fleet still stops it
+            instance.playerOverride = true;
+            EventLog.alert("hunt", "resuming although the rules say no (supplies short or target over the margin): the player's decision");
             a = "resume";
         }
         if (a.equals("resume")) {
