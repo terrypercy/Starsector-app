@@ -629,6 +629,8 @@ public class CaptainTest {
             check(pd != null && pd.action.equals("pursue_auto") && pd.option == 1, "dialog rules: pursuit goes to the second-in-command");
         }
         check(Guard.keepFloor("metals 50", "metals", "Metals") == 50, "keep: 'metals 50' typo form");
+        check(BatchMath.needsApproval("colony build Khna waystation"), "colony build with an industry asks in game first");
+        check(!BatchMath.needsApproval("colony build Khna"), "colony build listing needs no approval");
         // inbox gate
         List<String> go = Arrays.asList("go Hesperus");
         check(BatchMath.gate(go, -1, 100, -1).contains("#since"), "gate: no since refused");
