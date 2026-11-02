@@ -164,6 +164,17 @@ public final class DialogAgent {
             EventLog.info("loot", r.text);
             return r;
         }
+        if (dec.action.equals("pursue_auto")) {
+            if (!Rules.b("pursuit_autoresolve", true)) {
+                // the player turned it off: take command of the pursuit instead
+                for (AutoDialog.Opt x : o) if (x.enabled && !x.confirm && x.text.toLowerCase().startsWith("take command of the action")) {
+                    if (AutoDialog.click(d, x)) { r.clicked = x.text; r.text = "chose '" + x.text + "' (pursuit_autoresolve = false)"; return r; }
+                }
+            }
+            try { r.text = Pursuit.autoresolve(d); r.clicked = "pursue_auto"; EventLog.info("battle", r.text); }
+            catch (Throwable t) { r.paused = true; r.text = "pursuit autoresolve failed: " + t.getMessage(); }
+            return r;
+        }
         AutoDialog.Opt pick = o.get(dec.option);
         if (!AutoDialog.click(d, pick)) { r.paused = true; r.text = "click on '" + pick.text + "' failed"; return r; }
         r.clicked = pick.text;

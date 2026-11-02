@@ -262,7 +262,9 @@ public class CaptainTest {
         check(chosen(r, Arrays.asList("hunt", "engage"), hostile.replace("bounty=no", "bounty=yes").replace("stronger=no", "stronger=yes"), enc) == null,
                 "hunt: stronger than planned -> no rule (pause)");
         List<DialogRules.Opt> pursuit = opts("Take command of the action", "Order your second-in-command to handle it", "Let them go");
-        check("Take command of the action".equals(chosen(r, Arrays.asList("pursuit", "hunt"), sig("fleet", "hostile=yes", pursuit), pursuit)), "pursuit: take command");
+        check("pursue_auto".equals(chosen(r, Arrays.asList("pursuit", "hunt"), sig("fleet", "hostile=yes", pursuit), pursuit)), "pursuit: second-in-command (player's rule, Nov 2)");
+        List<DialogRules.Opt> pursuit2 = opts("Take command of the action", "Let them go");
+        check("Take command of the action".equals(chosen(r, Arrays.asList("pursuit", "hunt"), sig("fleet", "hostile=yes", pursuit2), pursuit2)), "pursuit: no second-in-command option -> take command");
 
         List<DialogRules.Opt> after = opts("Consider ship recovery", "Pick through the wreckage", "Continue");
         check("pause".equals(chosen(r, Arrays.asList("after_battle", "hunt"), sig("fleet", "hostile=yes", after), after)), "after battle with recovery: pause for Claude");
@@ -563,6 +565,28 @@ public class CaptainTest {
         check(!ColonyMath.claimAllows("persean", "luddic_church"), "colony claim: Netzach (Persean claim, Church commission) is off limits");
         check(!ColonyMath.claimAllows("persean", null), "colony claim: claimed system without a commission is off limits");
         check(ColonyMath.claimAllows("player", null), "colony claim: own system is fine");
+        {   // 1.0.9: pursuit picks (player's rule: second-in-command, fastest and most ready ships)
+            java.util.List<PursuitMath.Cand> c = new java.util.ArrayList<PursuitMath.Cand>();
+            c.add(new PursuitMath.Cand("Onslaught", 40f, 0.84f, 50f));
+            c.add(new PursuitMath.Cand("Brawler", 120f, 0.99f, 5f));
+            c.add(new PursuitMath.Cand("Omen", 140f, 0.30f, 6f));
+            c.add(new PursuitMath.Cand("Medusa", 110f, 0.84f, 12f));
+            c.add(new PursuitMath.Cand("Eagle", 80f, 0.90f, 20f));
+            java.util.List<Integer> p1 = PursuitMath.pick(c, 10f, 0.5f, 2f);
+            check(p1.size() == 3 && p1.get(0) == 1 && p1.get(1) == 3 && p1.get(2) == 4, "pursuit: fastest ready ships first until 2x enemy FP (Brawler, Medusa, Eagle) " + p1);
+            check(!p1.contains(2), "pursuit: low-CR Omen stays home even though fastest");
+            java.util.List<Integer> p2 = PursuitMath.pick(c, 1000f, 0.5f, 2f);
+            check(p2.size() == 4 && p2.get(3) == 0, "pursuit: too strong an enemy -> all ready ships go, slowest last " + p2);
+            check(PursuitMath.pick(c, 10f, 0.95f, 2f).size() == 1, "pursuit: only ships at or over min CR");
+            check(PursuitMath.pick(c, 10f, 1.0f, 2f).isEmpty(), "pursuit: none ready -> none sent");
+            DialogRules pdr = DialogRules.parse(DialogRules.DEFAULTS);
+            java.util.List<DialogRules.Opt> po = new java.util.ArrayList<DialogRules.Opt>();
+            po.add(new DialogRules.Opt("Take command of the action", true, false));
+            po.add(new DialogRules.Opt("Order your second-in-command to handle it", true, false));
+            String psig = "type=fleet " + DialogRules.optsField(po);
+            DialogRules.Decision pd = pdr.decide(java.util.Arrays.asList("hunt", "engage", "pursuit"), psig, po, false);
+            check(pd != null && pd.action.equals("pursue_auto") && pd.option == 1, "dialog rules: pursuit goes to the second-in-command");
+        }
         check(Guard.keepFloor("metals 50", "metals", "Metals") == 50, "keep: 'metals 50' typo form");
         // inbox gate
         List<String> go = Arrays.asList("go Hesperus");

@@ -50,6 +50,8 @@ public final class DialogRules {
       + "\n"
       + "# --- bounty targets and fights we chose\n"
       + "hunt,engage : match bounty=yes .*stronger=no -> choose ^(Move in to engage|Engage|Attack|Pursue them|Pursue|Go for the kill|Continue the battle)\n"
+      + "# post-battle pursuits go to the second-in-command with the fastest, most ready ships (player's rule, Nov 2)\n"
+      + "pursuit,hunt,engage : match opts=\\[[^\\]]*Order your second-in-command -> pursue_auto\n"
       + "pursuit,hunt,engage : match .* -> choose ^Take command of the action\n"
       + "\n"
       + "# --- exploration: salvage, debris, derelicts, surveys\n"
@@ -132,9 +134,12 @@ public final class DialogRules {
                 if (verb.equals("choose")) {
                     if (arg.length() == 0) throw new IllegalArgumentException("choose needs an option regex");
                     d.rules.add(new Rule(tags, mp, "choose", Pattern.compile(arg, Pattern.CASE_INSENSITIVE), "", raw));
+                } else if (verb.equals("pursue_auto")) {
+                    // 1.0.9: needs the game's "Order your second-in-command" option to be on offer
+                    d.rules.add(new Rule(tags, mp, "pursue_auto", Pattern.compile("^Order your second-in-command", Pattern.CASE_INSENSITIVE), "", raw));
                 } else if (verb.equals("pause") || verb.equals("loot")) {
                     d.rules.add(new Rule(tags, mp, verb, null, arg, raw));
-                } else throw new IllegalArgumentException("unknown action '" + verb + "' (choose, pause, loot)");
+                } else throw new IllegalArgumentException("unknown action '" + verb + "' (choose, pause, loot, pursue_auto)");
             } catch (PatternSyntaxException e) {
                 d.errors.add("line " + n + ": bad regex: " + e.getDescription());
             } catch (IllegalArgumentException e) {
@@ -160,7 +165,7 @@ public final class DialogRules {
             for (int k = 0; k < opts.size(); k++) {
                 Opt o = opts.get(k);
                 if (!o.enabled || o.confirm) continue;
-                if (r.option.matcher(o.text).find()) return new Decision("choose", k, r, i);
+                if (r.option.matcher(o.text).find()) return new Decision(r.action.equals("pursue_auto") ? "pursue_auto" : "choose", k, r, i);
             }
         }
         return null;
