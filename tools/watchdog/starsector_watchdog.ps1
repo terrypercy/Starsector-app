@@ -14,9 +14,11 @@ $Needed    = 3
 New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
 function Write-Log($msg) { Add-Content -Path $Log -Value ("{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $msg) }
 
-# Starsector's game runs in the bundled java.exe and has a window titled "Starsector ..."
+# Starsector's game runs in the bundled java.exe (inside the game folder) and owns a window.
+# No title check: after a crash the JVM's "fatal error" box can become the main window, and that
+# hung state (Nov 1: Intel graphics driver crash, box hidden for 11 hours) is exactly what must be caught.
 $game = Get-Process -Name java -ErrorAction SilentlyContinue |
-        Where-Object { $_.Path -like "$GameDir*" -and $_.MainWindowTitle -like 'Starsector*' }
+        Where-Object { $_.Path -like "$GameDir*" -and $_.MainWindowHandle -ne 0 }
 
 if (-not $game) { Set-Content -Path $Strikes -Value 0; exit 0 }
 
