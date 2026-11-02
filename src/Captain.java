@@ -205,6 +205,9 @@ public class Captain implements EveryFrameScript {
 
     private void step(long now) {
         Goals.Goal g = goal;
+        // 1.0.9 (Nov 2): a question or approval must reach the player even while a goal is paused - 'hunt resume
+        // anyway' waited forever behind the paused hunt it was meant to resume
+        if (askLine != null && g != null && !g.finished() && !g.running()) { handleAsk(); return; }
         if (g != null && !g.finished()) {
             if (g instanceof Goals.Runner) ((Goals.Runner) g).follow();
             if (g.running()) { g.tick(now); goalReported = false; }
@@ -598,7 +601,13 @@ public class Captain implements EveryFrameScript {
             if (pendingApproval != null) {
                 String p = pendingApproval;
                 pendingApproval = null;
-                if (n == 1) { approvedLine = p; queue.add(0, p); EventLog.info("approve", "the player approved: " + p); }
+                if (n == 1) {
+                    approvedLine = p;
+                    EventLog.info("approve", "the player approved: " + p);
+                    // 1.0.9: the queue doesn't move while a goal is paused, so run it now (e.g. 'hunt resume anyway')
+                    if (goal != null && !goal.finished() && !goal.running()) runLine(p);
+                    else queue.add(0, p);
+                }
                 else EventLog.alert("approve", "the player did NOT approve: " + p + " (not run)");
             }
             return;
