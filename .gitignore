@@ -7,7 +7,7 @@ jars/
 CLAUDE.local.md
 project.local.yaml
 production/session-logs/
-production/session-state/
+production/session-state/*
 !production/session-state/.gitkeep
 .scratch/
 .claude/agent-memory/
