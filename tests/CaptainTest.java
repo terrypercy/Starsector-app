@@ -467,6 +467,12 @@ public class CaptainTest {
         List<DialogRules.Opt> none = new ArrayList<DialogRules.Opt>();
         String lootSig = "type=derelict target=Derelict Ship faction=neutral hostile=no useful=no scan=no illegal=no bounty=no stronger=no salvage=yes loot=yes target_goal=yes opts=[] text=Begin salvage operations";
         check("loot".equals(chosen(dr, Arrays.asList("explore", "after_battle"), lootSig, none)), "salvage loot screen with no options: loot is taken");
+        List<DialogRules.Opt> rec = opts("Consider ship recovery", "Not now");
+        String recSig = "type=derelict target=Derelict Ship faction=neutral hostile=no useful=no scan=no illegal=no bounty=no stronger=no salvage=yes loot=no target_goal=yes " + DialogRules.optsField(rec) + " text=Explore";
+        check("Not now".equals(chosen(dr, Arrays.asList("explore", "after_battle"), recSig, rec)), "derelict on a detour: passed on, then salvaged");
+        List<DialogRules.Opt> own = opts("Consider ship recovery", "Continue");
+        String ownSig = "type=fleet target=X faction=f hostile=no useful=no scan=no illegal=no bounty=no stronger=no salvage=no loot=no target_goal=no " + DialogRules.optsField(own) + " text=";
+        check("pause".equals(chosen(dr, Arrays.asList("after_battle", "hunt"), ownSig, own)), "own ships after a battle: still asks");
         check(!AutoDialog.emptyGraceOver(1000L, 1000L + AutoDialog.EMPTY_GRACE_MS - 1L), "empty dialog: still settling inside the grace period");
         check(AutoDialog.emptyGraceOver(1000L, 1000L + AutoDialog.EMPTY_GRACE_MS), "empty dialog: stuck after the grace period");
         check(Guard.keepFloor(rule, "heavy_machinery", "Heavy Machinery") == 50, "keep: id with underscore matches");

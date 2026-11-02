@@ -43,6 +43,8 @@ public final class DialogRules {
       + "* : match scan=yes .*illegal=yes -> pause contraband aboard and a patrol wants to scan\n"
       + "\n"
       + "# --- after a battle\n"
+      + "# derelicts found while exploring are salvaged, not recovered (player's call, Nov 1)\n"
+      + "explore : match type=derelict .*opts=\\[[^\\]]*Consider ship recovery -> choose ^Not now$\n"
       + "after_battle,hunt : match opts=\\[[^\\]]*Consider ship recovery -> pause ship recovery: 'recover list' / 'recover <ship>' / 'hunt resume'\n"
       + "after_battle,hunt,explore : match .* -> choose ^Pick through the wreckage\n"
       + "\n"
