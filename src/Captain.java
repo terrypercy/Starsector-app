@@ -194,8 +194,13 @@ public class Captain implements EveryFrameScript {
                 + (other.isEmpty() ? "" : ", at once: " + other));
         if (!parts.get(2).isEmpty() && goal != null && !goal.finished()) {
             String old = goal.title, st = goal.state;
-            goal.cancel();
-            EventLog.info("goal", "replaced (" + st + "): " + old + " - batch " + batchId + " starts a new goal");
+            if (goal instanceof Goals.Runner && ((Goals.Runner) goal).hunt && "paused".equals(st)) {
+                ((Goals.Runner) goal).setAside();
+                EventLog.info("goal", "set aside (paused): " + old + " - batch " + batchId + " starts a new goal; 'hunt resume' continues the hunt");
+            } else {
+                goal.cancel();
+                EventLog.info("goal", "replaced (" + st + "): " + old + " - batch " + batchId + " starts a new goal");
+            }
         }
         for (String h : gov) runLine(h);
         for (String h : other) runLine(h);
@@ -541,7 +546,17 @@ public class Captain implements EveryFrameScript {
             if (d == null) throw new CommandException("no dialog is open");
             return DialogAgent.describe(d, goal == null ? DialogAgent.ctx("idle") : goal.ctx, goal == null ? null : goal.target(), null);
         }
-        if (c.equals("hunt")) { if (a.trim().equalsIgnoreCase("resume")) DialogAgent.resumedHere(); return BountyRunner.hunt(a); }
+        if (c.equals("hunt")) {
+            if (!a.trim().equalsIgnoreCase("resume")) return BountyRunner.hunt(a);
+            DialogAgent.resumedHere();
+            String r = BountyRunner.hunt(a);
+            // 1.1.8: a hunt set aside by another goal gets a goal again, so batches and the panel track it
+            if (r.startsWith("hunt resumed") && (goal == null || goal.finished())) {
+                goal = new Goals.Runner(true, "Hunt: " + BountyRunner.targetName());
+                goalReported = false;
+            }
+            return r;
+        }
         if (c.equals("loop") || c.equals("trade")) { TripRunner.loopLeft = 0; return "loop will stop after the current trip; " + TripRunner.loopStatus(); }
         // Trade Runner commands
         if (c.equals("plan")) {

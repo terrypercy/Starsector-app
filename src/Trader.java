@@ -143,7 +143,7 @@ public final class Trader {
                     cost = m.getSupplyPrice(id, qty, true) * (1f + tariff);
                 }
                 if (qty < 1f || cost / qty > cap) {
-                    r.text = "won't buy " + name + " on the " + s.getNameOneLine() + ": " + n(cost / Math.max(1f, qty)) + "/unit is over the market ceiling of " + n(cap) + " (median price x factor)";
+                    r.text = "won't buy " + name + " on the " + s.getNameOneLine() + ": " + String.format("%.1f", cost / Math.max(1f, qty)) + "/unit is over the market ceiling of " + String.format("%.1f", cap) + " (median price x factor)";
                     return r;
                 }
             }

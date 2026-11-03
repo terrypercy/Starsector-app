@@ -351,6 +351,12 @@ public class BountyRunner implements EveryFrameScript {
         return "hunting " + pick.name + " in " + pick.where + " (" + Math.round(pick.theirDP) + " DP vs our " + Math.round(ourDP()) + ")";
     }
 
+    /** The current target's name and system, or "?" when there is none. */
+    public static String targetName() {
+        Target t = instance == null ? null : instance.target;
+        return t == null ? "?" : t.name + " in " + t.where;
+    }
+
     static Target best(List<Target> ts) {
         Target b1 = best(ts, false);
         return b1 != null ? b1 : best(ts, true); // 1.0.8: pirate fleets only when no bounty is worth it

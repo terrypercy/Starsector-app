@@ -845,6 +845,11 @@ public final class Goals {
             String st = hunt ? BountyRunner.state : TripRunner.state;
             if ("paused".equals(state) && !"paused".equals(st)) state = "running";
         }
+        /**
+         * Closes this goal but leaves a paused hunt paused, so a batch that fixes what paused it (resupply,
+         * repair) doesn't throw the hunt away. Nov 2 live: 'resupply 71' cancelled the paused Jaunzeme hunt.
+         */
+        public void setAside() { if (!finished()) fail("set aside - the hunt stays paused ('hunt resume' continues it)"); }
         public void cancel() {
             if (hunt) BountyRunner.hunt("stop"); else TripRunner.cancel("by Claude");
             if (!finished()) fail("cancelled");
