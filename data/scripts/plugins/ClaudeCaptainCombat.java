@@ -191,10 +191,14 @@ public class ClaudeCaptainCombat extends BaseEveryFrameCombatPlugin {
             for (FleetMemberAPI m : pick) ours += m.getDeploymentPointsCost();
             for (FleetMemberAPI m : theirs.getReservesCopy()) theirsDP += m.getDeploymentPointsCost();
             for (FleetMemberAPI m : theirs.getDeployedCopy()) theirsDP += m.getDeploymentPointsCost();
-            if (ours >= theirsDP) {
+            // 1.1.14: only a clear advantage (battle_full_assault_ratio, default 1.5x) - a near-even fight on Full Assault lost three ships
+            float ratio = 1.5f;
+            try { ratio = Rules.f("battle_full_assault_ratio", 1.5f); } catch (Throwable ignored) {}
+            boolean assault = claudecaptain.TravelMath.fullAssault(ours, theirsDP, ratio);
+            if (assault) {
                 try { mine.getTaskManager(false).setFullAssault(true); } catch (Throwable t) { log.warn("full assault failed", t); }
             }
-            BattleConfig.lastResult = "deployed " + Math.round(ours) + " DP vs " + Math.round(theirsDP) + (ours >= theirsDP ? " (full assault)" : " (AI orders, we are weaker)");
+            BattleConfig.lastResult = "deployed " + Math.round(ours) + " DP vs " + Math.round(theirsDP) + (assault ? " (full assault)" : " (AI holds its line: not " + ratio + "x stronger)");
             try { EventLog.info("battle", BattleConfig.lastResult + ": " + deployedNames); } catch (Throwable ignored) {}
         }
         Object ui = engine.getCombatUI();

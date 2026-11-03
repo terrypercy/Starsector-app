@@ -80,6 +80,17 @@ public final class TravelMath {
         return etaDays * Math.max(0.1f, etaFactor) >= daysToRecover;
     }
 
+    /**
+     * 1.1.14 (player, Nov 3): Full Assault makes every ship charge and ignore its own safety. It is ordered only when we
+     * clearly outweigh the enemy (ours >= theirs x ratio); ratio <= 0 never orders it. 262 vs 238 DP at 1.0x lost
+     * two Retributions and a Dominator to the charge.
+     */
+    public static boolean fullAssault(float ourDP, float theirDP, float ratio) {
+        if (ratio <= 0f) return false;
+        if (theirDP <= 0f) return true;
+        return ourDP >= theirDP * ratio;
+    }
+
     /** Days for one ship to climb from cr to want at ratePerDay (fractions); 0 when it is already there. */
     public static float daysToCr(float cr, float want, float ratePerDay) {
         if (cr >= want) return 0f;

@@ -555,6 +555,9 @@ public class CaptainTest {
         // 1.1.10 (Nov 2 live: a 4-day rest after Gal Sen with a deadline ahead): recover CR on the way when the trip is long enough
         check(TravelMath.daysToCr(0.5f, 0.7f, 0.05f) > 3.99f && TravelMath.daysToCr(0.5f, 0.7f, 0.05f) < 4.01f, "rest: 20% CR at 5%/day takes 4 days");
         check(TravelMath.daysToCr(0.8f, 0.7f, 0.05f) == 0f, "rest: already above the target needs no days");
+        check(!TravelMath.fullAssault(262f, 238f, 1.5f), "battle: 262 vs 238 DP is not a clear edge - no Full Assault");
+        check(TravelMath.fullAssault(300f, 150f, 1.5f), "battle: 2x the enemy - Full Assault");
+        check(!TravelMath.fullAssault(500f, 10f, 0f), "battle: ratio 0 never orders Full Assault");
         check(TravelMath.recoverEnRoute(4f, 8f, 1f), "rest: an 8-day trip covers a 4-day recovery - no rest stop");
         check(!TravelMath.recoverEnRoute(4f, 2f, 1f), "rest: a 2-day trip doesn't cover a 4-day recovery - rest first");
         check(!TravelMath.recoverEnRoute(4f, 0f, 1f), "rest: unknown trip length - rest first");
