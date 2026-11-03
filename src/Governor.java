@@ -200,13 +200,33 @@ public final class Governor {
         try { checkAlarms(pf, d); } catch (Throwable t) { Global.getLogger(Governor.class).warn("Claude Captain: governor check failed", t); }
     }
 
-    /** 1.1.0: ships whose CR recovery the supply guard suspended (fleet member ids). */
-    private static final java.util.Set<String> guardSuspended = new java.util.HashSet<String>();
+    /**
+     * 1.1.0: ships whose CR recovery the supply guard suspended (fleet member ids).
+     * 1.1.13 (Nov 2 live): kept in the save's persistent data. The suspension itself is saved with each ship, but
+     * this list used to live only in memory - after a restart the guard forgot it and never resumed (every ship sat
+     * with repairs suspended from Jun 16 to Jul 11).
+     */
+    private static java.util.Set<String> guardSuspended = new java.util.HashSet<String>();
     private static float guardBurn = 0f;
+    private static Object guardStore = null;
+    static final String GUARD_KEY = "claude_captain_guard_suspended";
+
+    @SuppressWarnings("unchecked")
+    private static void loadGuard() {
+        try {
+            Map<String, Object> pd = Global.getSector().getPersistentData();
+            if (guardStore == pd) return;
+            guardStore = pd;
+            Object o = pd.get(GUARD_KEY);
+            if (!(o instanceof java.util.HashSet)) { o = new java.util.HashSet<String>(); pd.put(GUARD_KEY, o); }
+            guardSuspended = (java.util.Set<String>) o;
+        } catch (Throwable t) { Global.getLogger(Governor.class).warn("Claude Captain: guard list not loaded", t); }
+    }
 
     /** 1.1.0 (Nov 2): suspends CR recovery before it empties the hold, and resumes it once supplies cover it. */
     static void supplyGuard(CampaignFleetAPI pf, GovMath.Input in) {
         if (!armed || !Rules.b("gov_supply_guard", true) || in.inBattle) return;
+        loadGuard();
         List<FleetMemberAPI> ms = pf.getFleetData().getMembersListCopy();
         Map<String, FleetMemberAPI> byId = new HashMap<String, FleetMemberAPI>();
         for (FleetMemberAPI m : ms) byId.put(m.getId(), m);
