@@ -4,6 +4,7 @@ import claudecaptain.BattleConfig;
 import claudecaptain.Files;
 import claudecaptain.Lookup;
 import claudecaptain.EventLog;
+import claudecaptain.Rules;
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.SettingsAPI;
 import com.fs.starfarer.api.combat.BaseEveryFrameCombatPlugin;
@@ -78,7 +79,7 @@ public class ClaudeCaptainCombat extends BaseEveryFrameCombatPlugin {
             timer = 0f;
             readCommands();
             writeStatus();
-            checkEnd();
+            if (ending) retryEnd(); else checkEnd();
         } catch (Throwable t) {
             log.error("Claude Captain combat error", t);
         }
@@ -92,10 +93,20 @@ public class ClaudeCaptainCombat extends BaseEveryFrameCombatPlugin {
     }
 
     /** Ships too worn to fight: they malfunction and get destroyed (low combat readiness or a wrecked hull). */
-    private boolean tooWorn(FleetMemberAPI m) {
+    private boolean tooWorn(FleetMemberAPI m) { return wornBelow(m, 0.25f, 0.25f); }
+
+    /**
+     * 1.1.12 (Nov 2 live): CGR Star Ark went in at 30% CR / 40% hull against Flitch's remnant and was disabled
+     * again. Ships under battle_fresh_cr / battle_fresh_hull only deploy when the healthy ones don't cover the enemy.
+     */
+    private boolean worn(FleetMemberAPI m) {
+        return wornBelow(m, Rules.f("battle_fresh_cr", 0.5f), Rules.f("battle_fresh_hull", 0.5f));
+    }
+
+    private boolean wornBelow(FleetMemberAPI m, float cr, float hull) {
         try {
-            if (m.getRepairTracker().getCR() < 0.25f) return true;
-            if (m.getStatus().getHullFraction() < 0.25f) return true;
+            if (m.getRepairTracker().getCR() < cr) return true;
+            if (m.getStatus().getHullFraction() < hull) return true;
         } catch (Throwable ignored) {}
         return false;
     }
@@ -113,15 +124,19 @@ public class ClaudeCaptainCombat extends BaseEveryFrameCombatPlugin {
         String mode = BattleConfig.deploy == null ? "auto" : BattleConfig.deploy.trim().toLowerCase();
 
         if (mode.equals("all")) {
-            for (FleetMemberAPI m : reserves) if (!isCivilian(m) && !m.isMothballed() && !tooWorn(m)) pick.add(m);
+            for (FleetMemberAPI m : reserves) if (!isCivilian(m) && !m.isMothballed() && !worn(m)) pick.add(m);
+            if (pick.isEmpty()) for (FleetMemberAPI m : reserves) if (!isCivilian(m) && !m.isMothballed() && !tooWorn(m)) pick.add(m);
         } else if (mode.equals("auto")) {
             float enemyDP = 0f;
             for (FleetMemberAPI m : theirs.getReservesCopy()) enemyDP += m.getDeploymentPointsCost();
             for (FleetMemberAPI m : theirs.getDeployedCopy()) enemyDP += m.getDeploymentPointsCost();
             List<FleetMemberAPI> combat = new ArrayList<FleetMemberAPI>();
             for (FleetMemberAPI m : reserves) if (!isCivilian(m) && !m.isMothballed() && !tooWorn(m)) combat.add(m);
+            // healthy ships first (largest first), worn ones only if still needed
             Collections.sort(combat, new Comparator<FleetMemberAPI>() {
                 public int compare(FleetMemberAPI a, FleetMemberAPI b) {
+                    boolean wa = worn(a), wb = worn(b);
+                    if (wa != wb) return wa ? 1 : -1;
                     return Float.compare(b.getDeploymentPointsCost(), a.getDeploymentPointsCost());
                 }
             });
@@ -240,6 +255,22 @@ public class ClaudeCaptainCombat extends BaseEveryFrameCombatPlugin {
             ending = true;
             engine.endCombat(1f);
         }
+    }
+
+    /**
+     * 1.1.12 (Nov 2 live): after endCombat the game sat on "The enemy fleet is defeated. Press ESCAPE" until a
+     * human pressed it. If the battle is still running 6 s after ending it, end it again for the player side.
+     */
+    private float endWait = 0f;
+    private void retryEnd() {
+        endWait += 1f;
+        if (endWait < 6f) return;
+        endWait = 0f;
+        try {
+            if (engine.isCombatOver()) return;
+            engine.endCombat(0f, FleetSide.PLAYER);
+            EventLog.info("battle", "battle still open after ending it - ended again for our side");
+        } catch (Throwable t) { log.warn("end retry failed", t); }
     }
 
     private void checkEnd() {

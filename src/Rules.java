@@ -97,6 +97,8 @@ public final class Rules {
       + "hunt_min_cr = 0.6             # rest first when a combat ship is under this CR\n"
       + "hunt_rest_cr = 0.7            # after a fight, rest near a friendly market until this CR\n"
       + "hunt_max_ly = 20              # skip bounties farther than this\n"
+      + "battle_fresh_cr = 0.5         # 1.1.12: auto-battle sends ships under this combat readiness only if the healthy ones fall short\n"
+      + "battle_fresh_hull = 0.5       # ...and the same for hull (Nov 2: Star Ark went in at 30% CR / 40% hull)\n"
       + "hunt_rest_en_route = true     # 1.1.10 (player, Nov 2): skip the rest stop when readiness recovers during the trip to the next target\n"
       + "hunt_rest_en_route_factor = 1.0 # trip days x this must cover the recovery days\n"
       + "hunt_deadline_mult = 1.3      # 1.0.7: skip a timed bounty unless travel days x this + the extra days fit in the time left\n"
