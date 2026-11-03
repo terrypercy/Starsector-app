@@ -559,6 +559,10 @@ public class CaptainTest {
         check(!TravelMath.recoverEnRoute(4f, 2f, 1f), "rest: a 2-day trip doesn't cover a 4-day recovery - rest first");
         check(!TravelMath.recoverEnRoute(4f, 0f, 1f), "rest: unknown trip length - rest first");
         check(TravelMath.recoverEnRoute(0f, 0f, 1f), "rest: nothing to recover - go");
+        // 1.1.11 (Nov 2 live: restock aimed at Derinkuyu, 4.6 ly, with 180 fuel aboard when 574 were needed)
+        check(!GovMath.reachable(4.6f, 62.3f, 180f, 1.2f), "restock: 4.6 ly at 62 fuel/ly is out of reach with 180 fuel");
+        check(GovMath.reachable(4.6f, 62.3f, 600f, 1.2f), "restock: 4.6 ly is in reach with 600 fuel");
+        check(GovMath.reachable(0f, 62.3f, 0f, 1.2f), "restock: a market in this system is always in reach");
         check(Guard.keepFloor(rule, "heavy_machinery", "Heavy Machinery") == 50, "keep: id with underscore matches");
         check(Guard.keepFloor(rule, "gauss", "Gauss Cannon") == Integer.MAX_VALUE, "keep: bare name keeps all");
         check(Guard.keepFloor(rule, "food", "Food") == 0, "keep: not listed");

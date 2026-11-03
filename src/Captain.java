@@ -47,6 +47,9 @@ public class Captain implements EveryFrameScript {
     private InteractionDialogAPI expectedDialog, alertedDialog;
     private Object alertedBattle;
     private String askLine = null;
+    /** 1.1.11: the market the fleet was docked at when an approval was asked (re-docked after the Yes). */
+    private volatile SectorEntityToken askMarket;
+
     /** 1.0.9: the line waiting for the player's Yes, and the one line the player approved (runs once). */
     private String pendingApproval = null, approvedLine = null;
     private long approvedUntil = 0L;
@@ -270,6 +273,19 @@ public class Captain implements EveryFrameScript {
             yn.add("Yes, do it");
             yn.add("No");
             AskPopup.begin("Claude wants to: " + l + detail, yn);
+            // 1.1.11 (Nov 2 live): the popup can't open over a market screen, so the mod leaves the market itself
+            // and docks again after the Yes (see the "not docked" retry below)
+            askMarket = null;
+            try {
+                MarketAPI dm = Goals.dockedMarket();
+                InteractionDialogAPI dd = sector().getCampaignUI().getCurrentInteractionDialog();
+                if (dm != null && dd != null) {
+                    askMarket = dm.getPrimaryEntity();
+                    boolean left = false;
+                    for (AutoDialog.Opt o : AutoDialog.options(dd)) if (o.text.toLowerCase(Locale.ROOT).startsWith("leave")) { left = AutoDialog.click(dd, o); break; }
+                    if (!left) dd.dismiss();
+                }
+            } catch (Throwable ignored) {}
             askLine = "approve: " + line;
             pendingApproval = line;
             askStart = System.currentTimeMillis();
@@ -294,9 +310,18 @@ public class Captain implements EveryFrameScript {
             // 1.0.9 (Nov 2): the approval popup can only open outside a market screen, but buying or selling a ship
             // needs one. An approved line that failed for "not docked" keeps its approval for 30 minutes, so it can
             // be sent again after 'dock' without a second popup.
-            if (viaApproval && r != null && r.startsWith("not docked")) {
+            if (viaApproval && r != null && (r.startsWith("not docked") || r.contains("won't trade with you right now"))) {
                 kept.keep(line, System.currentTimeMillis() + 30L * 60L * 1000L);
-                r += "\n(the approval is kept for 30 minutes: 'dock <market>', then send '" + line + "' again)";
+                if (r.startsWith("not docked") && askMarket != null) {
+                    // 1.1.11: dock where the question was asked and run the approved line again
+                    SectorEntityToken back = askMarket;
+                    askMarket = null;
+                    goal = new Goals.Travel(back, true, 0f);
+                    goalReported = false;
+                    if (!Governor.budget.active()) Governor.implicitRun();
+                    queue.add(0, line);
+                    r += "\n(approved: docking at " + back.getName() + " again and running it - no second popup)";
+                } else r += "\n(the approval is kept for 30 minutes: 'dock <market>', then send '" + line + "' again)";
             }
             EventLog.add(EventCore.CMD, "cmd", "> " + line + "\n" + r);
             if (runner.lastMessage != null) msg(runner.lastMessage);
@@ -395,7 +420,7 @@ public class Captain implements EveryFrameScript {
             int n = (int) CommandRunner.num(t.get(i));
             float cap = 0f;
             for (int k = i + 1; k + 1 < t.size(); k++) if (t.get(k).equalsIgnoreCase("cap")) cap = (float) CommandRunner.num(t.get(k + 1));
-            if (Plans.stale(60000L)) Plans.refresh();
+            if (!Plans.shownFresh() && Plans.stale(60000L)) Plans.refresh();
             Planner.Trip trip = Plans.trip(n, c.equals("runsell"));
             if (trip == null) throw new CommandException("no trip " + n + " in the latest plan (send 'plan')");
             return startTrip(trip, cap, "Claude (inbox)");
@@ -561,6 +586,7 @@ public class Captain implements EveryFrameScript {
         // Trade Runner commands
         if (c.equals("plan")) {
             Planner.Result r = Plans.refresh();
+            Plans.pinShown();
             Plans.write(true);
             CaptainHud.refreshNow();
             if (r == null) return "planning failed: " + Plans.error;

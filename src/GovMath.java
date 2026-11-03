@@ -255,4 +255,10 @@ public final class GovMath {
         if (days < 0f || days > 365f) throw new IllegalArgumentException("run budget must be 0-365 days");
         return new Object[]{days, null};
     }
+
+    /** 1.1.11: true when ly light years at fuelPerLy (times margin) fit in the fuel aboard; same-system (0 ly) always fits. */
+    public static boolean reachable(float ly, float fuelPerLy, float fuel, float margin) {
+        if (ly <= 0.05f) return true;
+        return ly * fuelPerLy * Math.max(1f, margin) <= fuel;
+    }
 }

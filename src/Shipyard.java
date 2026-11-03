@@ -1189,7 +1189,7 @@ public final class Shipyard {
         if (!confirm)
             return "quote: " + what + " sells for " + n(price) + " cr on the " + sub.getNameOneLine() + " (base sell value "
                     + n(f.getBaseSellValue()) + ", " + Math.round(sub.getTariff() * 100f) + "% tariff, " + dmods(f) + " d-mods); fitted weapons and wings go to cargo first. "
-                    + "Send 'sellship " + q + (black ? " black" : "") + " confirm' to sell.";
+                    + "Send 'sellship " + q + (black ? " black" : "") + " confirm' to sell." + strengthAfterSale(f);
         if (blackLocked(sub) && !anyway) return "won't sell: " + blackLockedMsg(m) + " (or add 'anyway')";
         TripRunner.saveNow("selling " + what); // 1.0.9: save before big actions
         // strip weapons and wings into cargo, as a player would before selling
@@ -1390,6 +1390,20 @@ public final class Shipyard {
      * 1.0.7: "sellweapons [all|<name>] [black] [confirm]": spare weapons and fighter LPCs in cargo, priced the way the game
      * pays for them (base value x shipWeaponSellPriceMult, less the submarket's tariff - erring low). Quotes unless 'confirm'.
      */
+    /**
+     * 1.1.11 (Nov 2 live): selling four frigates for fuel money pushed a bounty over the hunt margin unnoticed.
+     * The sale quote now says what the fleet can still hunt.
+     */
+    static String strengthAfterSale(FleetMemberAPI f) {
+        try {
+            if (civilian(f) || f.isMothballed()) return "";
+            float now = BountyRunner.ourDP(), after = now - f.getDeploymentPointsCost();
+            float margin = Rules.f("hunt_margin", 1.25f);
+            return "\nfleet strength " + Math.round(now) + " -> " + Math.round(after) + " DP: hunts targets up to "
+                    + Math.round(now / margin) + " -> " + Math.round(after / margin) + " DP at " + margin + "x";
+        } catch (Throwable t) { return ""; }
+    }
+
     static String sellWeapons(String args) {
         String[] err = new String[1];
         CoreUITradeMode[] mode = new CoreUITradeMode[1];

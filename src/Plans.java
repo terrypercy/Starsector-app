@@ -65,8 +65,18 @@ public final class Plans {
         return t;
     }
 
+    /** 1.1.11: the list shown by the last 'plan' command; 'trip <n>' numbers refer to it for 30 minutes. */
+    public static volatile Planner.Result shown;
+    public static volatile long shownAt = 0L;
+
+    /** Pins the current plan as the one the player saw. */
+    public static void pinShown() { shown = latest; shownAt = System.currentTimeMillis(); }
+
+    /** The plan 'trip <n>' should use: the pinned one while fresh (Nov 2 live: a re-plan renumbered the trips). */
+    public static boolean shownFresh() { return shown != null && System.currentTimeMillis() - shownAt < 30L * 60L * 1000L; }
+
     public static Planner.Trip trip(int n, boolean sell) {
-        Planner.Result r = latest;
+        Planner.Result r = shownFresh() ? shown : latest;
         if (r == null) return null;
         java.util.List<Planner.Trip> l = sell ? r.sellTrips : r.trips;
         return n >= 1 && n <= l.size() ? l.get(n - 1) : null;

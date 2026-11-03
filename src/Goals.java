@@ -355,8 +355,11 @@ public final class Goals {
     }
 
     static boolean sells(MarketAPI m, String id) {
-        if (m.isHidden() || m.getPrimaryEntity() == null || m.getFaction().isHostileTo("player")) return false;
-        for (String sub : new String[]{"open_market", "black_market"}) {
+        if (m.isHidden() || m.getPrimaryEntity() == null) return false;
+        // 1.1.11 (Nov 2 live, Yama): docked at a hostile faction's market, its black market still trades
+        boolean hostile = m.getFaction().isHostileTo("player");
+        if (hostile && m != dockedMarket()) return false;
+        for (String sub : hostile ? new String[]{"black_market"} : new String[]{"open_market", "black_market"}) {
             if (m.getSubmarket(sub) == null) continue;
             try { if (Trader.liveStock(m, sub.startsWith("black"), id) >= 10f) return true; } catch (Throwable ignored) {}
         }
@@ -364,15 +367,19 @@ public final class Goals {
     }
 
     static MarketAPI nearest(java.util.Comparator<MarketAPI> unused, MarketFilter f) {
-        MarketAPI best = null;
-        float bd = Float.MAX_VALUE;
+        MarketAPI best = null, bestReach = null;
+        float bd = Float.MAX_VALUE, bdReach = Float.MAX_VALUE;
+        float fuel = 0f, fpl = 1f;
+        try { fuel = sector().getPlayerFleet().getCargo().getFuel(); fpl = Math.max(0.1f, sector().getPlayerFleet().getLogistics().getFuelCostPerLightYear()); } catch (Throwable ignored) {}
         for (MarketAPI m : sector().getEconomy().getMarketsCopy()) {
             if (m.isHidden() || m.getPrimaryEntity() == null || m.getFaction().isHostileTo("player")) continue;
             if (!f.ok(m)) continue;
             float d = Misc.getDistanceToPlayerLY(m.getPrimaryEntity());
             if (d < bd) { bd = d; best = m; }
+            // 1.1.11 (Nov 2 live): a restock picked Derinkuyu 4.6 ly away with 180 fuel aboard (574 needed)
+            if (GovMath.reachable(d, fpl, fuel, Rules.f("restock_fuel_margin", 1.2f)) && d < bdReach) { bdReach = d; bestReach = m; }
         }
-        return best;
+        return bestReach != null ? bestReach : best;
     }
 
     interface MarketFilter { boolean ok(MarketAPI m); }
