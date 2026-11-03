@@ -55,6 +55,7 @@ public class CommandRunner {
         if (cmd.equals("status")) return "status.txt updated";
         if (cmd.equals("msg")) return msg(join(a));
         if (cmd.equals("storage")) return storage(a);
+        if (cmd.equals("storages") || cmd.equals("production")) return storages();
         if (cmd.equals("say")) { Speech.say(join(a)); return "queued for speech"; }
         if (cmd.equals("shutup")) { Speech.stop(); return "speech stopped"; }
         if (cmd.equals("pause")) { Governor.modPause(); lastMessage = "Game paused"; return "paused"; }
@@ -372,6 +373,38 @@ public class CommandRunner {
         return s.getCargo();
     }
 
+    /**
+     * 1.1.17 (Nov 3): where custom-production deliveries go (the faction's gathering point) and what every
+     * storage we can use holds - ships first. Read-only; works anywhere, not only docked.
+     */
+    private String storages() {
+        StringBuilder b = new StringBuilder();
+        MarketAPI gp = null;
+        try { gp = sector().getPlayerFaction().getProduction().getGatheringPoint(); } catch (Throwable ignored) {}
+        b.append("production delivery point: ").append(gp == null ? "not set" : gp.getName() + " (" + gp.getStarSystem() + ")");
+        int n = 0;
+        for (MarketAPI m : sector().getEconomy().getMarketsCopy()) {
+            SubmarketAPI st = m.getSubmarket("storage");
+            if (st == null || st.getCargo() == null) continue;
+            if (!m.isPlayerOwned() && !Misc.playerHasStorageAccess(m)) continue;
+            CargoAPI c = st.getCargo();
+            List<FleetMemberAPI> ships = c.getMothballedShips() == null ? new ArrayList<FleetMemberAPI>() : c.getMothballedShips().getMembersListCopy();
+            float space = c.getSpaceUsed();
+            if (ships.isEmpty() && c.isEmpty()) continue;
+            n++;
+            b.append("\n").append(m.getName()).append(" (").append(m.getStarSystem() == null ? "?" : m.getStarSystem().getBaseName()).append("): ")
+             .append(ships.size()).append(" ship(s), cargo ").append(Math.round(space)).append(" units");
+            for (FleetMemberAPI f : ships) b.append("\n   ship: ").append(f.getHullSpec().getHullName()).append(" \"").append(f.getShipName()).append("\"");
+            int shown = 0;
+            for (CargoStackAPI cs : c.getStacksCopy()) {
+                if (shown++ >= 12) { b.append("\n   ..."); break; }
+                b.append("\n   ").append(Math.round(cs.getSize())).append(" x ").append(cs.getDisplayName());
+            }
+        }
+        if (n == 0) b.append("\nno storage with anything in it");
+        return b.toString();
+    }
+
     private String storage(List<String> a) throws CommandException {
         need(a, 1, "storage list | take <item> [qty|all] | put <item> [qty|all]");
         String op = a.get(0).toLowerCase();
@@ -383,12 +416,38 @@ public class CommandRunner {
                 b.append("\n  ").append(fmt(st.getSize())).append(" x ").append(st.getDisplayName());
                 n++;
             }
+            // 1.1.17: ships in storage too (custom-production deliveries land here)
+            if (store.getMothballedShips() != null) for (FleetMemberAPI f : store.getMothballedShips().getMembersListCopy()) {
+                b.append("\n  ship: ").append(f.getHullSpec().getHullName()).append(" \"").append(f.getShipName()).append("\"");
+                n++;
+            }
             if (n == 0) b.append(" (empty)");
             b.append("\nyour cargo space: ").append(fmt(cargo().getSpaceUsed())).append(" / ").append(fmt(cargo().getMaxCapacity()));
             return b.toString();
         }
+        // 1.1.17: 'storage takeship <name>|all' - move stored ships into the fleet (the drag-and-drop screen is hard to drive)
+        if (op.equals("takeship") || op.equals("takeships")) {
+            need(a, 2, "storage takeship <ship name or hull>|all");
+            String q = join(a.subList(1, a.size())).toLowerCase();
+            if (store.getMothballedShips() == null) return "no ships in storage";
+            StringBuilder b = new StringBuilder();
+            int moved = 0;
+            for (FleetMemberAPI f : store.getMothballedShips().getMembersListCopy()) {
+                boolean hit = q.equals("all") || f.getShipName().toLowerCase().contains(q) || f.getHullSpec().getHullName().toLowerCase().contains(q);
+                if (!hit) continue;
+                if (sector().getPlayerFleet().getFleetData().getNumMembers() >= Global.getSettings().getMaxShipsInFleet()) { b.append("\nfleet is full (").append(Global.getSettings().getMaxShipsInFleet()).append(" ships)"); break; }
+                store.getMothballedShips().removeFleetMember(f);
+                sector().getPlayerFleet().getFleetData().addFleetMember(f);
+                f.getRepairTracker().setMothballed(false);
+                try { f.updateStats(); } catch (Throwable ignored) {}
+                b.append("\ntook ").append(f.getHullSpec().getHullName()).append(" \"").append(f.getShipName()).append("\"");
+                moved++;
+            }
+            sector().getPlayerFleet().getFleetData().syncIfNeeded();
+            return moved == 0 ? "no stored ship matches '" + q + "'" + b : "moved " + moved + " ship(s) from storage into the fleet" + b;
+        }
         boolean take = op.equals("take");
-        if (!take && !op.equals("put")) throw new CommandException("usage: storage list | take <item> [qty|all] | put <item> [qty|all]");
+        if (!take && !op.equals("put")) throw new CommandException("usage: storage list | take <item> [qty|all] | put <item> [qty|all] | takeship <name>|all");
         need(a, 2, "storage take|put <item> [qty|all]");
         List<String> rest = new ArrayList<String>(a.subList(1, a.size()));
         String qtyStr = null;
