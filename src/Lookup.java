@@ -279,6 +279,44 @@ public final class Lookup {
         return l;
     }
 
+    /**
+     * 1.1.8 (Nov 2): "near <place> [n]" - markets closest to a system, market or planet, with the fuel they sell
+     * and whether they'd trade with us. Live: a bounty in a market-less system needed a refuel stop near it.
+     */
+    public static String near(String args) throws CommandException {
+        String q = args == null ? "" : args.trim();
+        int n = 10;
+        java.util.regex.Matcher mm = java.util.regex.Pattern.compile("^(.*?)\\s+(\\d+)$").matcher(q);
+        if (mm.find()) { q = mm.group(1).trim(); n = Math.max(1, Math.min(40, Integer.parseInt(mm.group(2)))); }
+        if (q.isEmpty()) throw new CommandException("usage: near <system|market|planet> [n]");
+        SectorEntityToken from = place(q);
+        final Map<MarketAPI, Float> dist = new HashMap<MarketAPI, Float>();
+        List<MarketAPI> ms = new ArrayList<MarketAPI>();
+        for (MarketAPI m : Global.getSector().getEconomy().getMarketsCopy()) {
+            if (m.isHidden() || m.getPrimaryEntity() == null) continue;
+            dist.put(m, com.fs.starfarer.api.util.Misc.getDistanceLY(from, m.getPrimaryEntity()));
+            ms.add(m);
+        }
+        Collections.sort(ms, new Comparator<MarketAPI>() {
+            public int compare(MarketAPI a, MarketAPI b) { return Float.compare(dist.get(a), dist.get(b)); }
+        });
+        StringBuilder b = new StringBuilder("markets nearest " + from.getName() + ":");
+        for (int i = 0; i < Math.min(n, ms.size()); i++) {
+            MarketAPI m = ms.get(i);
+            FactionAPI f = m.getFaction();
+            String rel;
+            if (f.isHostileTo("player")) rel = "HOSTILE";
+            else if (f.isAtBest(com.fs.starfarer.api.impl.campaign.ids.Factions.PLAYER, com.fs.starfarer.api.campaign.RepLevel.INHOSPITABLE) && !m.isFreePort()) rel = "won't dock";
+            else rel = "ok";
+            float fuel = Trader.liveStock(m, false, "fuel") + Trader.liveStock(m, true, "fuel");
+            b.append("\n  ").append(m.getName()).append(" (").append(m.getStarSystem() == null ? "?" : m.getStarSystem().getBaseName())
+             .append(", ").append(f.getDisplayName()).append(", size ").append(m.getSize()).append(") | ")
+             .append(String.format(java.util.Locale.ROOT, "%.1f", dist.get(m))).append(" ly | ").append(rel)
+             .append(" | fuel stock ").append(Math.round(fuel));
+        }
+        return b.toString();
+    }
+
     /** Resolve a place name to a token that a course can be laid in to. */
     public static SectorEntityToken place(String query) throws CommandException {
         SectorAPI sector = Global.getSector();
