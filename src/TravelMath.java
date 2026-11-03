@@ -69,4 +69,20 @@ public final class TravelMath {
         if (hereDeep) return usable ? JUMP_OUT : NONE;
         return NONE;
     }
+
+    /**
+     * 1.1.10 (Nov 2, player): combat readiness recovers while the fleet travels, so a rest before a trip is wasted
+     * when the trip takes at least as long as the recovery. True: leave now and recover on the way.
+     */
+    public static boolean recoverEnRoute(float daysToRecover, float etaDays, float etaFactor) {
+        if (daysToRecover <= 0f) return true;
+        if (etaDays <= 0f) return false;
+        return etaDays * Math.max(0.1f, etaFactor) >= daysToRecover;
+    }
+
+    /** Days for one ship to climb from cr to want at ratePerDay (fractions); 0 when it is already there. */
+    public static float daysToCr(float cr, float want, float ratePerDay) {
+        if (cr >= want) return 0f;
+        return (want - cr) / Math.max(0.001f, ratePerDay);
+    }
 }

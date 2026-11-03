@@ -97,6 +97,8 @@ public final class Rules {
       + "hunt_min_cr = 0.6             # rest first when a combat ship is under this CR\n"
       + "hunt_rest_cr = 0.7            # after a fight, rest near a friendly market until this CR\n"
       + "hunt_max_ly = 20              # skip bounties farther than this\n"
+      + "hunt_rest_en_route = true     # 1.1.10 (player, Nov 2): skip the rest stop when readiness recovers during the trip to the next target\n"
+      + "hunt_rest_en_route_factor = 1.0 # trip days x this must cover the recovery days\n"
       + "hunt_deadline_mult = 1.3      # 1.0.7: skip a timed bounty unless travel days x this + the extra days fit in the time left\n"
       + "hunt_deadline_extra_days = 3  # ...days allowed for finding and catching the fleet\n"
       + "hunt_min_supply_days = 30     # supplies needed to start a hunt (maintenance burn)\n"

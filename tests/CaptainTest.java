@@ -552,6 +552,13 @@ public class CaptainTest {
         check("pause".equals(chosen(dr, Arrays.asList("after_battle", "hunt"), ownSig, own)), "own ships after a battle: still asks");
         check(!AutoDialog.emptyGraceOver(1000L, 1000L + AutoDialog.EMPTY_GRACE_MS - 1L), "empty dialog: still settling inside the grace period");
         check(AutoDialog.emptyGraceOver(1000L, 1000L + AutoDialog.EMPTY_GRACE_MS), "empty dialog: stuck after the grace period");
+        // 1.1.10 (Nov 2 live: a 4-day rest after Gal Sen with a deadline ahead): recover CR on the way when the trip is long enough
+        check(TravelMath.daysToCr(0.5f, 0.7f, 0.05f) > 3.99f && TravelMath.daysToCr(0.5f, 0.7f, 0.05f) < 4.01f, "rest: 20% CR at 5%/day takes 4 days");
+        check(TravelMath.daysToCr(0.8f, 0.7f, 0.05f) == 0f, "rest: already above the target needs no days");
+        check(TravelMath.recoverEnRoute(4f, 8f, 1f), "rest: an 8-day trip covers a 4-day recovery - no rest stop");
+        check(!TravelMath.recoverEnRoute(4f, 2f, 1f), "rest: a 2-day trip doesn't cover a 4-day recovery - rest first");
+        check(!TravelMath.recoverEnRoute(4f, 0f, 1f), "rest: unknown trip length - rest first");
+        check(TravelMath.recoverEnRoute(0f, 0f, 1f), "rest: nothing to recover - go");
         check(Guard.keepFloor(rule, "heavy_machinery", "Heavy Machinery") == 50, "keep: id with underscore matches");
         check(Guard.keepFloor(rule, "gauss", "Gauss Cannon") == Integer.MAX_VALUE, "keep: bare name keeps all");
         check(Guard.keepFloor(rule, "food", "Food") == 0, "keep: not listed");

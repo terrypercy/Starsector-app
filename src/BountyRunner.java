@@ -402,8 +402,30 @@ public class BountyRunner implements EveryFrameScript {
             pause(low + " - resupply before hunting"); return;
         }
         if (Rules.b("hunt_auto_resupply", true) && hullNeedsDock()) { startSub(new Goals.Repair(), Phase.TRAVEL, "hull damage: dockyard repair first"); return; }
-        if (lowestCombatCR() < Rules.f("hunt_min_cr", 0.6f)) { setPhase(Phase.REST, "combat readiness low: resting first"); return; }
+        if (lowestCombatCR() < Rules.f("hunt_min_cr", 0.6f) && !recoverOnTheWay(t, Rules.f("hunt_min_cr", 0.6f))) { setPhase(Phase.REST, "combat readiness low: resting first"); return; }
         setPhase(Phase.TRAVEL, "flying to " + t.where);
+    }
+
+    /** Days until every combat ship reaches want CR at its own recovery rate. */
+    static float daysToRecover(float want) {
+        float worst = 0f;
+        for (FleetMemberAPI m : pf().getFleetData().getMembersListCopy()) {
+            if (m.isMothballed() || Shipyard.civilian(m)) continue;
+            try {
+                float d = TravelMath.daysToCr(m.getRepairTracker().getCR(), Math.min(want, m.getRepairTracker().getMaxCR()), m.getRepairTracker().getRecoveryRate());
+                if (d > worst) worst = d;
+            } catch (Throwable ignored) {}
+        }
+        return worst;
+    }
+
+    /** 1.1.10: skip the rest when the trip to t is long enough to recover on the way (hunt_rest_en_route). */
+    private boolean recoverOnTheWay(Target t, float want) {
+        if (!Rules.b("hunt_rest_en_route", true) || t == null) return false;
+        float need = daysToRecover(want);
+        boolean ok = TravelMath.recoverEnRoute(need, t.eta, Rules.f("hunt_rest_en_route_factor", 1.0f));
+        if (ok) EventLog.info("hunt", "readiness recovers on the way: ~" + Math.round(need) + " days needed, ~" + Math.round(t.eta) + " days to " + t.where + " - no rest stop");
+        return ok;
     }
 
     /** Supplies the fleet burns per day right now (upkeep plus CR recovery). */
@@ -702,7 +724,10 @@ public class BountyRunner implements EveryFrameScript {
         }
         log("bounty result: " + res + "; combat readiness " + Math.round(lowestCombatCR() * 100f) + "%");
         huntsLeft--;
-        if (lowestCombatCR() < Rules.f("hunt_rest_cr", 0.7f)) { setPhase(Phase.REST, "resting to repair"); return; }
+        if (lowestCombatCR() < Rules.f("hunt_rest_cr", 0.7f)) {
+            Target nt = huntsLeft > 0 ? best(targets()) : null;
+            if (nt == null || !recoverOnTheWay(nt, Rules.f("hunt_rest_cr", 0.7f))) { setPhase(Phase.REST, "resting to repair"); return; }
+        }
         next("done (" + res + ")");
     }
 
