@@ -979,6 +979,49 @@ public final class Shipyard {
     }
 
     /** Removes every d-mod (and returns a (D) hull to its original hull) at a market with a spaceport, as the refit screen's Restore does. */
+    /** Removes every d-mod (and the (D) hull) from a fleet member, the way a dockyard restoration does. */
+    static void stripDMods(FleetMemberAPI f) {
+        ShipVariantAPI v = f.getVariant().clone();
+        v.setSource(VariantSource.REFIT);
+        if (v.isStockVariant()) v.setHullVariantId(Misc.genUID());
+        List<String> ids = new ArrayList<String>(v.getHullMods());
+        for (String id : ids) {
+            HullModSpecAPI sp = Global.getSettings().getHullModSpec(id);
+            if (sp != null && sp.hasTag(Tags.HULLMOD_DMOD)) com.fs.starfarer.api.impl.campaign.DModManager.removeDMod(v, id);
+        }
+        if (v.getHullSpec().isDHull() && v.getHullSpec().getDParentHull() != null) v.setHullSpecAPI(v.getHullSpec().getDParentHull());
+        f.setVariant(v, false, true);
+        try { f.updateStats(); } catch (Throwable ignored) {}
+    }
+
+    /**
+     * 1.1.14 (player, Nov 3): a one-off exception to the no-cheats rule. The Full Assault bug (fixed in this version)
+     * cost three ships their clean hulls vs Haley Crosby; the player allowed removing those d-mods free, "just for those
+     * ships". Only the ships in UNDMOD_SHIPS, each once (remembered in the save), whatever allow_cheats says.
+     */
+    public static final java.util.List<String> UNDMOD_SHIPS = java.util.Arrays.asList("CGR Miracle of Life", "CGR Waning Day", "HSS Polaris Traveller");
+    static final String UNDMOD_KEY = "claude_captain_undmod_used";
+
+    static String undmod(String q) {
+        String key = q == null ? "" : q.trim();
+        if (key.isEmpty()) return "usage: undmod <ship> (only " + UNDMOD_SHIPS + ", once each)";
+        FleetMemberAPI f = findMember(key);
+        if (f == null) return "no ship matching '" + key + "'";
+        if (!UNDMOD_SHIPS.contains(f.getShipName())) return "undmod is only allowed for " + UNDMOD_SHIPS + " (player's one-off exception); use 'restore'";
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> pd = Global.getSector().getPersistentData();
+        Object o = pd.get(UNDMOD_KEY);
+        String used = o instanceof String ? (String) o : "";
+        if (("|" + used + "|").contains("|" + f.getShipName() + "|")) return f.getShipName() + " already had its free d-mod removal";
+        int d = com.fs.starfarer.api.impl.campaign.DModManager.getNumDMods(f.getVariant());
+        if (d == 0 && !f.getVariant().isDHull()) return f.getShipName() + ": no d-mods";
+        stripDMods(f);
+        pf().getFleetData().syncIfNeeded();
+        pd.put(UNDMOD_KEY, used.isEmpty() ? f.getShipName() : used + "|" + f.getShipName());
+        try { EventLog.alert("cheat", "undmod " + f.getShipName() + ": " + d + " d-mods removed free (player's one-off exception, Nov 3)"); } catch (Throwable ignored) {}
+        return f.getShipName() + " (" + f.getHullSpec().getHullName() + "): " + d + " d-mods removed (free, one-off)";
+    }
+
     static String restore(String q) {
         String[] err = new String[1];
         CoreUITradeMode[] mode = new CoreUITradeMode[1];
@@ -1006,17 +1049,7 @@ public final class Shipyard {
             if (quote) { b.append(f.getShipName()).append(": restoring ").append(d).append(" d-mod(s) costs ").append(n(cost)).append(" cr (quote only)\n"); continue; }
             float credits = pf().getCargo().getCredits().get();
             if (cost > credits - Rules.f("reserve_credits", 5000f)) { b.append(f.getShipName()).append(": restoring costs ").append(n(cost)).append(" cr, not enough credits\n"); continue; }
-            ShipVariantAPI v = v0.clone();
-            v.setSource(VariantSource.REFIT);
-            if (v.isStockVariant()) v.setHullVariantId(Misc.genUID());
-            List<String> ids = new ArrayList<String>(v.getHullMods());
-            for (String id : ids) {
-                HullModSpecAPI sp = Global.getSettings().getHullModSpec(id);
-                if (sp != null && sp.hasTag(Tags.HULLMOD_DMOD)) com.fs.starfarer.api.impl.campaign.DModManager.removeDMod(v, id);
-            }
-            if (v.getHullSpec().isDHull() && v.getHullSpec().getDParentHull() != null) v.setHullSpecAPI(v.getHullSpec().getDParentHull());
-            f.setVariant(v, false, true);
-            try { f.updateStats(); } catch (Throwable ignored) {}
+            stripDMods(f);
             pf().getCargo().getCredits().subtract(cost);
             b.append(f.getShipName()).append(" (").append(f.getHullSpec().getHullName()).append("): restored, ").append(d).append(" d-mods removed, ")
              .append(n(cost)).append(" cr\n");

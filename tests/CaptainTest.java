@@ -568,6 +568,8 @@ public class CaptainTest {
         check(GovMath.reachable(0f, 62.3f, 0f, 1.2f), "restock: a market in this system is always in reach");
         check(!BatchMath.needsApproval("restore CGR Star Ark quote"), "restore quote: no approval (nothing is spent)");
         check(BatchMath.needsApproval("restore CGR Star Ark"), "restore: still needs the player's Yes");
+        check(BatchMath.needsApproval("undmod CGR Miracle of Life"), "undmod: the one-off free d-mod removal needs the player's Yes");
+        check(Shipyard.UNDMOD_SHIPS.size() == 3 && Shipyard.UNDMOD_SHIPS.contains("CGR Waning Day"), "undmod: only the three ships the player named");
         check(Guard.keepFloor(rule, "heavy_machinery", "Heavy Machinery") == 50, "keep: id with underscore matches");
         check(Guard.keepFloor(rule, "gauss", "Gauss Cannon") == Integer.MAX_VALUE, "keep: bare name keeps all");
         check(Guard.keepFloor(rule, "food", "Food") == 0, "keep: not listed");
