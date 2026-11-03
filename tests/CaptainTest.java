@@ -560,9 +560,15 @@ public class CaptainTest {
         check(Doctrine.role("CRUISER", "eradicator_pirates", false).equals(Doctrine.SUPPORT), "doctrine: Eradicator (P) is wave-1 fire support");
         check(Doctrine.role("CAPITAL_SHIP", "onslaught_mk1", false).equals(Doctrine.CORE), "doctrine: Onslaught is the core wave");
         check(Doctrine.role("DESTROYER", "phaeton", true).equals(Doctrine.SKIP), "doctrine: civilian ships never deploy");
-        check(!Doctrine.wave2Due(0, 3, 10f, 30f) && Doctrine.wave2Due(1, 3, 10f, 30f) && Doctrine.wave2Due(0, 3, 31f, 30f), "doctrine: wave 2 on an objective or after the delay");
+        check(!Doctrine.wave2Due(0, 4, 32f, 60f, 1f, 0.75f) && !Doctrine.wave2Due(1, 4, 32f, 60f, 0.9f, 0.75f), "doctrine 1.1.17: no wave 2 at 32 s with 0-1 of 4 objectives and wave 1 healthy (the Nil Heze charge)");
+        check(Doctrine.wave2Due(2, 4, 10f, 60f, 1f, 0.75f) && Doctrine.wave2Due(2, 3, 10f, 60f, 1f, 0.75f), "doctrine 1.1.17: wave 2 once half the objectives are held");
+        check(Doctrine.wave2Due(0, 4, 10f, 60f, 0.7f, 0.75f), "doctrine 1.1.17: wave 2 early when wave 1 is losing");
+        check(Doctrine.wave2Due(0, 4, 61f, 60f, 1f, 0.75f) && Doctrine.wave2Due(0, 0, 0f, 60f, 1f, 0.75f), "doctrine 1.1.17: late fallback; no objectives = at once");
+        check(!Doctrine.lineFormed(0.5f, 20f, 0.75f, 60f) && Doctrine.lineFormed(0.8f, 20f, 0.75f, 60f) && Doctrine.lineFormed(0f, 61f, 0.75f, 60f), "doctrine 1.1.17: search and destroy only once wave 2 reached the front (or fallback)");
         check(Doctrine.room(0f, 50f) == Float.MAX_VALUE && Doctrine.room(150f, 104f) == 46f, "doctrine: room under the game's cap");
-        check(Doctrine.shouldRetreat(0.39f, 10, 0, 0.4f) && Doctrine.shouldRetreat(0.9f, 10, 6, 0.4f) && !Doctrine.shouldRetreat(0.9f, 10, 2, 0.4f), "doctrine: retreat on low hull or weapons stripped");
+        check(Doctrine.shouldRetreat(0.39f, 10, 0, 0.4f, 0.75f) && !Doctrine.shouldRetreat(0.9f, 10, 2, 0.4f, 0.75f), "doctrine: retreat on low hull");
+        check(!Doctrine.shouldRetreat(1.0f, 15, 9, 0.4f, 0.75f) && !Doctrine.shouldRetreat(0.98f, 15, 8, 0.4f, 0.75f), "doctrine 1.1.17: healthy hull never retreats for destroyed weapons (Waning Day, Leviathan)");
+        check(Doctrine.shouldRetreat(0.6f, 10, 6, 0.4f, 0.75f) && !Doctrine.shouldRetreat(0.6f, 10, 5, 0.4f, 0.75f), "doctrine 1.1.17: damaged hull + most weapons destroyed retreats");
         check(!TravelMath.fullAssault(262f, 238f, 1.5f), "battle: 262 vs 238 DP is not a clear edge - no Full Assault");
         check(TravelMath.fullAssault(300f, 150f, 1.5f), "battle: 2x the enemy - Full Assault");
         check(!TravelMath.fullAssault(500f, 10f, 0f), "battle: ratio 0 never orders Full Assault");

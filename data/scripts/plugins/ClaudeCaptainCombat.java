@@ -56,6 +56,8 @@ public class ClaudeCaptainCombat extends BaseEveryFrameCombatPlugin {
     // 1.1.16 two-wave doctrine
     private boolean waves = false, wave2Sent = false, wave1Orders = false, lineFormed = false;
     private float wave2At = -1f;
+    private final List<FleetMemberAPI> wave1Ships = new ArrayList<FleetMemberAPI>(), wave2Ships = new ArrayList<FleetMemberAPI>();
+    private float wave1StartDP = 0f;
     private com.fs.starfarer.api.combat.AssignmentTargetAPI centerWp;
     private final java.util.Set<FleetMemberAPI> retreatOrdered = new java.util.HashSet<FleetMemberAPI>();
     private final java.util.Map<ShipAPI, CombatFleetManagerAPI.AssignmentInfo> fluxHold = new java.util.HashMap<ShipAPI, CombatFleetManagerAPI.AssignmentInfo>();
@@ -140,7 +142,10 @@ public class ClaudeCaptainCombat extends BaseEveryFrameCombatPlugin {
             if (pick.isEmpty()) for (FleetMemberAPI m : reserves) if (!isCivilian(m) && !m.isMothballed() && !tooWorn(m)) pick.add(m);
         } else if (mode.equals("auto") && "waves".equalsIgnoreCase(Rules.s("battle_doctrine", "waves")) && !escaping()) {
             waves = true;
-            pick.addAll(wave1Pick(mine, reserves));
+            List<FleetMemberAPI> w1 = wave1Pick(mine, reserves);
+            pick.addAll(w1);
+            wave1Ships.clear(); wave1Ships.addAll(w1); wave1StartDP = 0f;
+            for (FleetMemberAPI m : w1) wave1StartDP += m.getDeploymentPointsCost();
         } else if (mode.equals("auto")) {
             float enemyDP = 0f;
             for (FleetMemberAPI m : theirs.getReservesCopy()) enemyDP += m.getDeploymentPointsCost();
@@ -259,12 +264,46 @@ public class ClaudeCaptainCombat extends BaseEveryFrameCombatPlugin {
         if (!wave2Sent) {
             int held = 0, total = 0;
             for (BattleObjectiveAPI o : engine.getObjectives()) { total++; if (o.getOwner() == 0) held++; }
-            if (Doctrine.wave2Due(held, total, t, Rules.f("battle_wave2_after_s", 30f))) { wave2Sent = true; wave2At = t; wave2(mine, tm, held); }
-        } else if (!lineFormed && t - wave2At > Rules.f("battle_line_formed_s", 20f)) {
-            lineFormed = true;
-            try { tm.orderSearchAndDestroy(); EventLog.info("battle", "line formed: search and destroy"); } catch (Throwable e) { log.warn("s&d failed", e); }
+            float str = wave1Strength(mine);
+            if (Doctrine.wave2Due(held, total, t, Rules.f("battle_wave2_after_s", 60f), str, Rules.f("battle_wave1_losing_below", 0.75f))) {
+                wave2Sent = true; wave2At = t;
+                try { EventLog.info("battle", "wave 2 trigger at " + Math.round(t) + " s: " + held + "/" + total + " objectives held, wave 1 at " + Math.round(str * 100f) + "% strength"); } catch (Throwable ignored) {}
+                wave2(mine, tm, held);
+            }
+        } else if (!lineFormed) {
+            float arrived = wave2Arrived(mine);
+            if (Doctrine.lineFormed(arrived, t - wave2At, Rules.f("battle_line_arrived", 0.75f), Rules.f("battle_line_formed_s", 60f))) {
+                lineFormed = true;
+                try { tm.orderSearchAndDestroy(); EventLog.info("battle", "line formed (" + Math.round(arrived * 100f) + "% of wave 2 at the front, " + Math.round(t - wave2At) + " s after it dropped): search and destroy"); } catch (Throwable e) { log.warn("s&d failed", e); }
+            }
         }
         retreatsAndFlux(mine, tm);
+    }
+
+    /** 1.1.17: wave 1's strength now vs at the start, DP weighted by hull; retreated or lost ships count as 0. */
+    private float wave1Strength(CombatFleetManagerAPI mine) {
+        if (wave1StartDP <= 0f) return 1f;
+        float now = 0f;
+        for (FleetMemberAPI m : wave1Ships) {
+            ShipAPI s = mine.getShipFor(m);
+            if (s == null || !s.isAlive() || s.isRetreating()) continue;
+            now += m.getDeploymentPointsCost() * s.getHitpoints() / Math.max(1f, s.getMaxHitpoints());
+        }
+        return now / wave1StartDP;
+    }
+
+    /** 1.1.17: share of wave 2 (by count) within battle_line_radius of the map centre, i.e. at the front. */
+    private float wave2Arrived(CombatFleetManagerAPI mine) {
+        if (wave2Ships.isEmpty()) return 1f;
+        float r = Rules.f("battle_line_radius", 3000f);
+        int alive = 0, there = 0;
+        for (FleetMemberAPI m : wave2Ships) {
+            ShipAPI s = mine.getShipFor(m);
+            if (s == null || !s.isAlive()) continue;
+            alive++;
+            if (s.getLocation().length() <= r) there++;
+        }
+        return alive == 0 ? 1f : (float) there / alive;
     }
 
     private DeployedFleetMemberAPI dfm(CombatFleetManagerAPI mgr, FleetMemberAPI m) {
@@ -334,6 +373,7 @@ public class ClaudeCaptainCombat extends BaseEveryFrameCombatPlugin {
         for (FleetMemberAPI m : cand) {
             if (used + m.getDeploymentPointsCost() > room) continue;
             mine.spawnFleetMember(m, new Vector2f(x, y), 90f, 3f);
+            wave2Ships.add(m);
             x += 400f; used += m.getDeploymentPointsCost();
             if (anchor == null) anchor = m;
             b.append(m.getShipName()).append(", ");
@@ -360,11 +400,17 @@ public class ClaudeCaptainCombat extends BaseEveryFrameCombatPlugin {
             if (s == null || d.isFighterWing() || !s.isAlive() || s.isRetreating()) continue;
             FleetMemberAPI m = d.getMember();
             float hull = s.getHitpoints() / Math.max(1f, s.getMaxHitpoints());
-            int w = s.getAllWeapons().size(), off = s.getDisabledWeapons() == null ? 0 : s.getDisabledWeapons().size();
-            if (!retreatOrdered.contains(m) && d.canBeGivenRetreatOrders() && Doctrine.shouldRetreat(hull, w, off, hullLimit)) {
+            // 1.1.17: only weapons destroyed for good count; EMP'd / flamed-out ones come back in seconds
+            int w = 0, off = 0;
+            for (com.fs.starfarer.api.combat.WeaponAPI wp : s.getAllWeapons()) {
+                if (wp.isDecorative()) continue;
+                w++;
+                if (wp.isPermanentlyDisabled()) off++;
+            }
+            if (!retreatOrdered.contains(m) && d.canBeGivenRetreatOrders() && Doctrine.shouldRetreat(hull, w, off, hullLimit, Rules.f("battle_retreat_weapons_hull", 0.75f))) {
                 retreatOrdered.add(m);
                 tm.orderRetreat(d, false, false);
-                try { EventLog.info("battle", "retreat " + m.getShipName() + " (hull " + Math.round(hull * 100f) + "%, " + off + "/" + w + " weapons out)"); } catch (Throwable ignored) {}
+                try { EventLog.info("battle", "retreat " + m.getShipName() + " (hull " + Math.round(hull * 100f) + "%, " + off + "/" + w + " weapons destroyed)"); } catch (Throwable ignored) {}
                 continue;
             }
             float hf = s.getFluxTracker().getHardFlux() / Math.max(1f, s.getFluxTracker().getMaxFlux());
