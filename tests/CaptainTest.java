@@ -555,6 +555,14 @@ public class CaptainTest {
         // 1.1.10 (Nov 2 live: a 4-day rest after Gal Sen with a deadline ahead): recover CR on the way when the trip is long enough
         check(TravelMath.daysToCr(0.5f, 0.7f, 0.05f) > 3.99f && TravelMath.daysToCr(0.5f, 0.7f, 0.05f) < 4.01f, "rest: 20% CR at 5%/day takes 4 days");
         check(TravelMath.daysToCr(0.8f, 0.7f, 0.05f) == 0f, "rest: already above the target needs no days");
+        check(Doctrine.role("FRIGATE", "brawler", false).equals(Doctrine.CAPPER), "doctrine: Brawler caps objectives");
+        check(Doctrine.role("FRIGATE", "monitor", false).equals(Doctrine.STALL), "doctrine: Monitor stalls/escorts");
+        check(Doctrine.role("CRUISER", "eradicator_pirates", false).equals(Doctrine.SUPPORT), "doctrine: Eradicator (P) is wave-1 fire support");
+        check(Doctrine.role("CAPITAL_SHIP", "onslaught_mk1", false).equals(Doctrine.CORE), "doctrine: Onslaught is the core wave");
+        check(Doctrine.role("DESTROYER", "phaeton", true).equals(Doctrine.SKIP), "doctrine: civilian ships never deploy");
+        check(!Doctrine.wave2Due(0, 3, 10f, 30f) && Doctrine.wave2Due(1, 3, 10f, 30f) && Doctrine.wave2Due(0, 3, 31f, 30f), "doctrine: wave 2 on an objective or after the delay");
+        check(Doctrine.room(0f, 50f) == Float.MAX_VALUE && Doctrine.room(150f, 104f) == 46f, "doctrine: room under the game's cap");
+        check(Doctrine.shouldRetreat(0.39f, 10, 0, 0.4f) && Doctrine.shouldRetreat(0.9f, 10, 6, 0.4f) && !Doctrine.shouldRetreat(0.9f, 10, 2, 0.4f), "doctrine: retreat on low hull or weapons stripped");
         check(!TravelMath.fullAssault(262f, 238f, 1.5f), "battle: 262 vs 238 DP is not a clear edge - no Full Assault");
         check(TravelMath.fullAssault(300f, 150f, 1.5f), "battle: 2x the enemy - Full Assault");
         check(!TravelMath.fullAssault(500f, 10f, 0f), "battle: ratio 0 never orders Full Assault");

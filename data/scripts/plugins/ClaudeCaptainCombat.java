@@ -7,7 +7,12 @@ import claudecaptain.EventLog;
 import claudecaptain.Rules;
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.SettingsAPI;
+import claudecaptain.Doctrine;
 import com.fs.starfarer.api.combat.BaseEveryFrameCombatPlugin;
+import com.fs.starfarer.api.combat.BattleObjectiveAPI;
+import com.fs.starfarer.api.combat.CombatAssignmentType;
+import com.fs.starfarer.api.combat.CombatTaskManagerAPI;
+import com.fs.starfarer.api.combat.DeployedFleetMemberAPI;
 import com.fs.starfarer.api.combat.CombatEngineAPI;
 import com.fs.starfarer.api.combat.CombatFleetManagerAPI;
 import com.fs.starfarer.api.combat.ShipAPI;
@@ -48,6 +53,12 @@ public class ClaudeCaptainCombat extends BaseEveryFrameCombatPlugin {
     private float timer = 0f;
     private float clearFor = 0f;
     private String deployedNames = "";
+    // 1.1.16 two-wave doctrine
+    private boolean waves = false, wave2Sent = false, wave1Orders = false, lineFormed = false;
+    private float wave2At = -1f;
+    private com.fs.starfarer.api.combat.AssignmentTargetAPI centerWp;
+    private final java.util.Set<FleetMemberAPI> retreatOrdered = new java.util.HashSet<FleetMemberAPI>();
+    private final java.util.Map<ShipAPI, CombatFleetManagerAPI.AssignmentInfo> fluxHold = new java.util.HashMap<ShipAPI, CombatFleetManagerAPI.AssignmentInfo>();
 
     @Override
     public void init(CombatEngineAPI engine) {
@@ -78,6 +89,7 @@ public class ClaudeCaptainCombat extends BaseEveryFrameCombatPlugin {
             if (timer < 1f && !engine.isPaused()) return;
             timer = 0f;
             readCommands();
+            if (waves && !ending) doctrineTick();
             writeStatus();
             if (ending) retryEnd(); else checkEnd();
         } catch (Throwable t) {
@@ -126,6 +138,9 @@ public class ClaudeCaptainCombat extends BaseEveryFrameCombatPlugin {
         if (mode.equals("all")) {
             for (FleetMemberAPI m : reserves) if (!isCivilian(m) && !m.isMothballed() && !worn(m)) pick.add(m);
             if (pick.isEmpty()) for (FleetMemberAPI m : reserves) if (!isCivilian(m) && !m.isMothballed() && !tooWorn(m)) pick.add(m);
+        } else if (mode.equals("auto") && "waves".equalsIgnoreCase(Rules.s("battle_doctrine", "waves")) && !escaping()) {
+            waves = true;
+            pick.addAll(wave1Pick(mine, reserves));
         } else if (mode.equals("auto")) {
             float enemyDP = 0f;
             for (FleetMemberAPI m : theirs.getReservesCopy()) enemyDP += m.getDeploymentPointsCost();
@@ -194,17 +209,176 @@ public class ClaudeCaptainCombat extends BaseEveryFrameCombatPlugin {
             // 1.1.14: only a clear advantage (battle_full_assault_ratio, default 1.5x) - a near-even fight on Full Assault lost three ships
             float ratio = 1.5f;
             try { ratio = Rules.f("battle_full_assault_ratio", 1.5f); } catch (Throwable ignored) {}
-            boolean assault = claudecaptain.TravelMath.fullAssault(ours, theirsDP, ratio);
+            boolean assault = !waves && claudecaptain.TravelMath.fullAssault(ours, theirsDP, ratio);
             if (assault) {
                 try { mine.getTaskManager(false).setFullAssault(true); } catch (Throwable t) { log.warn("full assault failed", t); }
             }
-            BattleConfig.lastResult = "deployed " + Math.round(ours) + " DP vs " + Math.round(theirsDP) + (assault ? " (full assault)" : " (AI holds its line: not " + ratio + "x stronger)");
+            BattleConfig.lastResult = "deployed " + Math.round(ours) + " DP vs " + Math.round(theirsDP) + (waves ? " (wave 1 of 2)" : assault ? " (full assault)" : " (AI holds its line: not " + ratio + "x stronger)");
             try { EventLog.info("battle", BattleConfig.lastResult + ": " + deployedNames); } catch (Throwable ignored) {}
         }
         Object ui = engine.getCombatUI();
         if (ui instanceof CombatState) ((CombatState) ui).setAutopilot(true);
         engine.setPaused(false);
         writeStatus();
+    }
+
+    // ---------------------------------------------------------------- 1.1.16 two-wave doctrine
+
+    private String roleOf(FleetMemberAPI m) {
+        return Doctrine.role(m.getHullSpec().getHullSize().name(), m.getHullId(), isCivilian(m) || m.isMothballed());
+    }
+
+    private float deployedDP(CombatFleetManagerAPI mgr) {
+        float dp = 0f;
+        for (FleetMemberAPI m : mgr.getDeployedCopy()) dp += m.getDeploymentPointsCost();
+        return dp;
+    }
+
+    /** Wave 1: cappers, Monitors and Eradicators, healthy first, inside min(wave1 cap, the game's cap). */
+    private List<FleetMemberAPI> wave1Pick(CombatFleetManagerAPI mine, List<FleetMemberAPI> reserves) {
+        List<FleetMemberAPI> out = new ArrayList<FleetMemberAPI>();
+        float room = Math.min(Rules.f("battle_wave1_max_dp", 104f), Doctrine.room(mine.getMaxStrength(), deployedDP(mine)));
+        List<FleetMemberAPI> cand = new ArrayList<FleetMemberAPI>();
+        for (FleetMemberAPI m : reserves) if (Doctrine.wave1(roleOf(m)) && !tooWorn(m) && !worn(m)) cand.add(m);
+        Collections.sort(cand, new Comparator<FleetMemberAPI>() {
+            public int compare(FleetMemberAPI a, FleetMemberAPI b) { return Float.compare(a.getDeploymentPointsCost(), b.getDeploymentPointsCost()); }
+        });
+        float used = 0f;
+        for (FleetMemberAPI m : cand) {
+            if (used + m.getDeploymentPointsCost() > room) continue;
+            out.add(m); used += m.getDeploymentPointsCost();
+        }
+        return out;
+    }
+
+    private void doctrineTick() {
+        CombatFleetManagerAPI mine = engine.getFleetManager(FleetSide.PLAYER);
+        CombatTaskManagerAPI tm = mine.getTaskManager(false);
+        float t = engine.getTotalElapsedTime(false);
+        if (!wave1Orders && t > 3f) { wave1Orders = true; wave1Orders(mine, tm); }
+        if (!wave2Sent) {
+            int held = 0, total = 0;
+            for (BattleObjectiveAPI o : engine.getObjectives()) { total++; if (o.getOwner() == 0) held++; }
+            if (Doctrine.wave2Due(held, total, t, Rules.f("battle_wave2_after_s", 30f))) { wave2Sent = true; wave2At = t; wave2(mine, tm, held); }
+        } else if (!lineFormed && t - wave2At > Rules.f("battle_line_formed_s", 20f)) {
+            lineFormed = true;
+            try { tm.orderSearchAndDestroy(); EventLog.info("battle", "line formed: search and destroy"); } catch (Throwable e) { log.warn("s&d failed", e); }
+        }
+        retreatsAndFlux(mine, tm);
+    }
+
+    private DeployedFleetMemberAPI dfm(CombatFleetManagerAPI mgr, FleetMemberAPI m) {
+        ShipAPI s = mgr.getShipFor(m);
+        return s == null ? null : mgr.getDeployedFleetMember(s);
+    }
+
+    private void wave1Orders(CombatFleetManagerAPI mine, CombatTaskManagerAPI tm) {
+        StringBuilder b = new StringBuilder();
+        // cappers: one per objective, nearest first
+        List<BattleObjectiveAPI> objs = new ArrayList<BattleObjectiveAPI>(engine.getObjectives());
+        for (FleetMemberAPI m : mine.getDeployedCopy()) {
+            if (!Doctrine.CAPPER.equals(roleOf(m)) || objs.isEmpty()) continue;
+            DeployedFleetMemberAPI d = dfm(mine, m);
+            if (d == null || !d.canBeGivenOrders()) continue;
+            BattleObjectiveAPI best = null; float bd = Float.MAX_VALUE;
+            for (BattleObjectiveAPI o : objs) {
+                float dd = com.fs.starfarer.api.util.Misc.getDistance(o.getLocation(), d.getLocation());
+                if (dd < bd) { bd = dd; best = o; }
+            }
+            if (best == null) continue;
+            objs.remove(best);
+            tm.giveAssignment(d, tm.createAssignment(CombatAssignmentType.CAPTURE, best, false), false);
+            b.append(m.getShipName()).append(" -> capture ").append(best.getDisplayName()).append("; ");
+        }
+        // Monitors: intercept the fastest enemy
+        DeployedFleetMemberAPI fastest = null; float sp = 0f;
+        CombatFleetManagerAPI enemy = engine.getFleetManager(FleetSide.ENEMY);
+        for (DeployedFleetMemberAPI e : enemy.getDeployedCopyDFM()) {
+            if (e.isFighterWing() || e.getShip() == null) continue;
+            if (e.getShip().getMaxSpeed() > sp) { sp = e.getShip().getMaxSpeed(); fastest = e; }
+        }
+        for (FleetMemberAPI m : mine.getDeployedCopy()) {
+            if (!Doctrine.STALL.equals(roleOf(m)) || fastest == null) continue;
+            DeployedFleetMemberAPI d = dfm(mine, m);
+            if (d == null || !d.canBeGivenOrders()) continue;
+            tm.giveAssignment(d, tm.createAssignment(CombatAssignmentType.INTERCEPT, fastest, false), false);
+            b.append(m.getShipName()).append(" -> intercept; ");
+        }
+        // Eradicators: defend the centre lane
+        centerWp = tm.createWaypoint2(new Vector2f(0f, 0f), true);
+        for (FleetMemberAPI m : mine.getDeployedCopy()) {
+            if (!Doctrine.SUPPORT.equals(roleOf(m))) continue;
+            DeployedFleetMemberAPI d = dfm(mine, m);
+            if (d == null || !d.canBeGivenOrders()) continue;
+            tm.giveAssignment(d, tm.createAssignment(CombatAssignmentType.DEFEND, centerWp, false), false);
+            b.append(m.getShipName()).append(" -> defend centre; ");
+        }
+        try { EventLog.info("battle", "wave 1 orders: " + b); } catch (Throwable ignored) {}
+    }
+
+    /** Wave 2: capitals and other cruisers, biggest first, inside the game's cap; then Monitors escort the biggest. */
+    private void wave2(CombatFleetManagerAPI mine, CombatTaskManagerAPI tm, int held) {
+        List<FleetMemberAPI> cand = new ArrayList<FleetMemberAPI>();
+        for (FleetMemberAPI m : mine.getReservesCopy()) if (Doctrine.CORE.equals(roleOf(m)) && !tooWorn(m)) cand.add(m);
+        Collections.sort(cand, new Comparator<FleetMemberAPI>() {
+            public int compare(FleetMemberAPI a, FleetMemberAPI b) {
+                boolean wa = worn(a), wb = worn(b);
+                if (wa != wb) return wa ? 1 : -1;
+                return Float.compare(b.getDeploymentPointsCost(), a.getDeploymentPointsCost());
+            }
+        });
+        float room = Doctrine.room(mine.getMaxStrength(), deployedDP(mine));
+        float y = -engine.getMapHeight() / 2f + 1200f, x = -800f, used = 0f;
+        StringBuilder b = new StringBuilder();
+        FleetMemberAPI anchor = null;
+        for (FleetMemberAPI m : cand) {
+            if (used + m.getDeploymentPointsCost() > room) continue;
+            mine.spawnFleetMember(m, new Vector2f(x, y), 90f, 3f);
+            x += 400f; used += m.getDeploymentPointsCost();
+            if (anchor == null) anchor = m;
+            b.append(m.getShipName()).append(", ");
+        }
+        try { EventLog.info("battle", "wave 2 (" + held + " objective(s) held, " + Math.round(used) + " DP): " + b); } catch (Throwable ignored) {}
+        if (anchor == null) return;
+        DeployedFleetMemberAPI a = dfm(mine, anchor);
+        if (a == null) return;
+        for (FleetMemberAPI m : mine.getDeployedCopy()) {
+            if (!Doctrine.STALL.equals(roleOf(m))) continue;
+            DeployedFleetMemberAPI d = dfm(mine, m);
+            if (d == null || !d.canBeGivenOrders()) continue;
+            tm.giveAssignment(d, tm.createAssignment(CombatAssignmentType.HEAVY_ESCORT, a, false), false);
+            try { EventLog.info("battle", m.getShipName() + " escorts " + anchor.getShipName()); } catch (Throwable ignored) {}
+            break; // one Monitor on the anchor, the other keeps stalling
+        }
+    }
+
+    /** Pull back ships under battle_retreat_hull (default 40%) or with most weapons out; vent ships at 80% hard flux. */
+    private void retreatsAndFlux(CombatFleetManagerAPI mine, CombatTaskManagerAPI tm) {
+        float hullLimit = Rules.f("battle_retreat_hull", 0.4f);
+        for (DeployedFleetMemberAPI d : mine.getDeployedCopyDFM()) {
+            ShipAPI s = d.getShip();
+            if (s == null || d.isFighterWing() || !s.isAlive() || s.isRetreating()) continue;
+            FleetMemberAPI m = d.getMember();
+            float hull = s.getHitpoints() / Math.max(1f, s.getMaxHitpoints());
+            int w = s.getAllWeapons().size(), off = s.getDisabledWeapons() == null ? 0 : s.getDisabledWeapons().size();
+            if (!retreatOrdered.contains(m) && d.canBeGivenRetreatOrders() && Doctrine.shouldRetreat(hull, w, off, hullLimit)) {
+                retreatOrdered.add(m);
+                tm.orderRetreat(d, false, false);
+                try { EventLog.info("battle", "retreat " + m.getShipName() + " (hull " + Math.round(hull * 100f) + "%, " + off + "/" + w + " weapons out)"); } catch (Throwable ignored) {}
+                continue;
+            }
+            float hf = s.getFluxTracker().getHardFlux() / Math.max(1f, s.getFluxTracker().getMaxFlux());
+            CombatFleetManagerAPI.AssignmentInfo held = fluxHold.get(s);
+            if (held == null && Doctrine.fluxBackOff(hf) && d.canBeGivenOrders()) {
+                Vector2f back = new Vector2f(s.getLocation().x, s.getLocation().y - 1500f);
+                CombatFleetManagerAPI.AssignmentInfo a = tm.createAssignment(CombatAssignmentType.DEFEND, tm.createWaypoint2(back, true), false);
+                tm.giveAssignment(d, a, false);
+                fluxHold.put(s, a);
+            } else if (held != null && Doctrine.fluxRecovered(hf)) {
+                tm.removeAssignment(held);
+                fluxHold.remove(s);
+            }
+        }
     }
 
     // ---------------------------------------------------------------- status & control
