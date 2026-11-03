@@ -563,6 +563,8 @@ public class CaptainTest {
         check(!GovMath.reachable(4.6f, 62.3f, 180f, 1.2f), "restock: 4.6 ly at 62 fuel/ly is out of reach with 180 fuel");
         check(GovMath.reachable(4.6f, 62.3f, 600f, 1.2f), "restock: 4.6 ly is in reach with 600 fuel");
         check(GovMath.reachable(0f, 62.3f, 0f, 1.2f), "restock: a market in this system is always in reach");
+        check(!BatchMath.needsApproval("restore CGR Star Ark quote"), "restore quote: no approval (nothing is spent)");
+        check(BatchMath.needsApproval("restore CGR Star Ark"), "restore: still needs the player's Yes");
         check(Guard.keepFloor(rule, "heavy_machinery", "Heavy Machinery") == 50, "keep: id with underscore matches");
         check(Guard.keepFloor(rule, "gauss", "Gauss Cannon") == Integer.MAX_VALUE, "keep: bare name keeps all");
         check(Guard.keepFloor(rule, "food", "Food") == 0, "keep: not listed");

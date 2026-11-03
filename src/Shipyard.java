@@ -985,6 +985,9 @@ public final class Shipyard {
         MarketAPI m = docked(err, mode);
         if (m == null) return err[0];
         if (!m.hasSpaceport()) return m.getName() + " has no spaceport; restoration needs one";
+        // 1.1.12: 'restore <ship> quote' prices it without restoring (player, Nov 2: numbers before deciding)
+        boolean quote = q.trim().toLowerCase(java.util.Locale.ROOT).endsWith(" quote");
+        if (quote) q = q.trim().substring(0, q.trim().length() - 6).trim();
         List<FleetMemberAPI> todo = new ArrayList<FleetMemberAPI>();
         if (q.trim().equalsIgnoreCase("all")) {
             for (FleetMemberAPI f : pf().getFleetData().getMembersListCopy())
@@ -1000,6 +1003,7 @@ public final class Shipyard {
             int d = com.fs.starfarer.api.impl.campaign.DModManager.getNumDMods(v0);
             if (d == 0 && !v0.isDHull()) { b.append(f.getShipName()).append(": nothing to restore\n"); continue; }
             float cost = restoreCost(f);
+            if (quote) { b.append(f.getShipName()).append(": restoring ").append(d).append(" d-mod(s) costs ").append(n(cost)).append(" cr (quote only)\n"); continue; }
             float credits = pf().getCargo().getCredits().get();
             if (cost > credits - Rules.f("reserve_credits", 5000f)) { b.append(f.getShipName()).append(": restoring costs ").append(n(cost)).append(" cr, not enough credits\n"); continue; }
             ShipVariantAPI v = v0.clone();
