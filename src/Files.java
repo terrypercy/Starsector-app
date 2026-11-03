@@ -2,7 +2,7 @@ package claudecaptain;
 
 /** File names inside Starsector's saves/common folder (the game adds ".data" on disk). */
 public final class Files {
-    public static final String VERSION = "1.1.14";
+    public static final String VERSION = "1.1.15";
     public static final String DIR = "claude_captain/";
     public static final String INBOX = DIR + "inbox.txt";
     public static final String EVENTS = DIR + "events.txt";

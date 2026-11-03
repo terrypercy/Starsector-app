@@ -40,6 +40,8 @@ public class BountyRunner implements EveryFrameScript {
         CampaignFleetAPI fleet;
         PersonBountyIntel person;
         SystemBountyIntel system;
+        /** 1.1.15: a bar/contact bounty mission (e.g. "Bounty - Patrol"); its target fleet is the mission's map marker. */
+        com.fs.starfarer.api.impl.campaign.missions.cb.BaseCustomBounty mission;
         LocationAPI loc;
         boolean ok;
         String why = "";
@@ -168,6 +170,33 @@ public class BountyRunner implements EveryFrameScript {
                 out.add(t);
             }
         }
+        // 1.1.15 (player, Nov 3): accepted mission bounties from bars and contacts (the Naraka patrol job)
+        for (IntelInfoPlugin i : sector().getIntelManager().getIntel()) {
+            if (!(i instanceof com.fs.starfarer.api.impl.campaign.missions.cb.BaseCustomBounty)) continue;
+            com.fs.starfarer.api.impl.campaign.missions.cb.BaseCustomBounty mb = (com.fs.starfarer.api.impl.campaign.missions.cb.BaseCustomBounty) i;
+            if (mb.isEnded() || mb.isEnding()) continue;
+            Target t = new Target();
+            t.mission = mb; t.kind = "mission";
+            try { t.name = mb.getBaseName(); } catch (Throwable e) { t.name = "mission bounty"; }
+            try { t.reward = mb.getCreditsReward(); } catch (Throwable ignored) {}
+            try { t.faction = mb.getFactionForUIColors() == null ? "" : mb.getFactionForUIColors().getDisplayName(); } catch (Throwable ignored) {}
+            SectorEntityToken mark = null;
+            try { mark = mb.getMapLocation(null); } catch (Throwable ignored) {}
+            t.fleet = missionFleet(mb, mark);
+            if (t.fleet == null) {
+                t.loc = mark == null ? null : mark.getContainingLocation();
+                t.where = t.loc == null ? "?" : t.loc.getName();
+                t.ly = mark == null ? 0f : Misc.getDistanceToPlayerLY(mark);
+                t.ok = false; t.why = "target fleet not found (a station target, or not accepted yet)";
+                out.add(t); continue;
+            }
+            t.loc = t.fleet.getContainingLocation();
+            t.where = t.loc == null ? "?" : t.loc.getName();
+            t.theirDP = dpOf(t.fleet);
+            t.ly = Misc.getDistanceToPlayerLY(t.fleet);
+            judge(t, ours, margin, maxLy);
+            out.add(t);
+        }
         for (IntelInfoPlugin i : sector().getIntelManager().getIntel(SystemBountyIntel.class)) {
             SystemBountyIntel b = (SystemBountyIntel) i;
             if (b.isEnded() || b.isEnding() || b.getMarket() == null || b.getMarket().getStarSystem() == null) continue;
@@ -183,6 +212,27 @@ public class BountyRunner implements EveryFrameScript {
             out.add(t);
         }
         return out;
+    }
+
+    /**
+     * 1.1.15: a mission bounty's target is the fleet it marked important ("$<id>_target" in the fleet's memory); the
+     * map marker is usually that fleet. Stations (hidden fleets) are not hunted.
+     */
+    static CampaignFleetAPI missionFleet(com.fs.starfarer.api.impl.campaign.missions.cb.BaseCustomBounty mb, SectorEntityToken mark) {
+        if (mark instanceof CampaignFleetAPI) {
+            CampaignFleetAPI f = (CampaignFleetAPI) mark;
+            return f.isAlive() && !f.isStationMode() ? f : null;
+        }
+        String id = null;
+        try { id = mb.getMissionId(); } catch (Throwable ignored) {}
+        LocationAPI loc = mark == null ? null : mark.getContainingLocation();
+        if (id == null || loc == null) return null;
+        for (CampaignFleetAPI f : loc.getFleets()) {
+            if (!f.isAlive() || f.isStationMode()) continue;
+            for (String k : f.getMemoryWithoutUpdate().getKeys())
+                if (k.endsWith("_target") && k.contains(id)) return f;
+        }
+        return null;
     }
 
     private static void judge(Target t, float ours, float margin, float maxLy) {
@@ -282,7 +332,7 @@ public class BountyRunner implements EveryFrameScript {
         int i = 0;
         for (Target t : ts) {
             i++;
-            b.append(i).append(". ").append(t.kind.equals("person") ? "" : t.kind.equals("pirate") ? "[pirates] " : "[system] ").append(t.name).append(" | ").append(t.where)
+            b.append(i).append(". ").append(t.kind.equals("person") ? "" : t.kind.equals("pirate") ? "[pirates] " : t.kind.equals("mission") ? "[mission] " : "[system] ").append(t.name).append(" | ").append(t.where)
              .append(" | ").append(String.format("%.1f", t.ly)).append(" ly");
             if (t.reward > 0) b.append(" | ").append(Shipyard.n(t.reward)).append(" cr");
             if (t.faction != null && t.faction.length() > 0) b.append(" | posted by ").append(t.faction); // 1.0.8: who pays (and gives reputation)
@@ -568,6 +618,7 @@ public class BountyRunner implements EveryFrameScript {
 
     private boolean targetGone() {
         if (target.person != null) return target.person.isEnded() || target.person.isEnding() || target.fleet == null || !target.fleet.isAlive();
+        if (target.mission != null && (target.mission.isEnded() || target.mission.isEnding())) return true;
         return target.fleet == null || !target.fleet.isAlive();
     }
 
@@ -720,6 +771,13 @@ public class BountyRunner implements EveryFrameScript {
             if (target.person.getResult() != null && target.person.getResult().type == PersonBountyIntel.BountyResultType.END_PLAYER_BOUNTY)
                 EventLog.info("bounty", "PAID: " + r);
             else EventLog.alert("bounty", "NOT PAID: " + r);
+            res = r;
+        }
+        if (target.mission != null) { // 1.1.15: missions pay through their own dialog/intel; report what the credits did
+            float got = pf().getCargo().getCredits().get() - creditsAtStart;
+            String r = target.name + ": mission " + (target.mission.isEnded() || target.mission.isEnding() ? "ended" : "still open (target fleet gone?)")
+                    + ", credits since the hunt began " + (got >= 0 ? "+" : "") + Shipyard.n(got);
+            if (got > 0) EventLog.info("bounty", "PAID: " + r); else EventLog.alert("bounty", "check the intel screen: " + r);
             res = r;
         }
         log("bounty result: " + res + "; combat readiness " + Math.round(lowestCombatCR() * 100f) + "%");
