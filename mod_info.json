@@ -2,7 +2,7 @@
 	"id": "claude_captain",
 	"name": "Claude Captain",
 	"author": "Claude",
-	"version": "1.1.20",
+	"version": "1.1.21",
 	"utility": true,
 	"description": "Lets Claude captain your fleet through saves/common/claude_captain/: goals (travel, dock, resupply, repair, hire, commission, hunt, trade, explore) that handle every dialog on the way by editable rules, a safety governor that only lets time pass inside a granted budget, an append-only event log and a JSON state snapshot, plus one compact panel (F8 folds, F9 cycles sections). Replaces Claude Bridge and Claude Trade Runner - disable those. Safe to add to or remove from a save.",
 	"gameVersion": "0.98a-RC8",

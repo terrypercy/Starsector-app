@@ -108,7 +108,7 @@ public final class BatchMath {
         if (c.equals("buy") && t.size() > 1 && t.get(1).startsWith("suppl")) return true;
         if (c.equals("sellship") && t.contains("confirm")) return true;
         if (c.equals("restore") && l.endsWith(" quote")) return false; // 1.1.12: a price, nothing spent
-        if (c.equals("buyship") || c.equals("restore") || c.equals("undmod") || c.equals("buyspec") || c.equals("hire")) return true;
+        if (c.equals("buyship") || c.equals("restore") || c.equals("undmod") || c.equals("bonussp") || c.equals("buyspec") || c.equals("hire")) return true;
         // 1.1.7: starting a colony building spends credits (listing doesn't): the player's Yes first
         if (c.equals("colony") && t.size() > 3 && t.get(1).equals("build")) return true; // colony build <colony> <industry>
         if (c.equals("hunt") && l.equals("hunt resume anyway")) return true;

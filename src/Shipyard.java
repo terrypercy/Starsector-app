@@ -1029,6 +1029,24 @@ public final class Shipyard {
         return f.getShipName() + " (" + f.getHullSpec().getHullName() + "): " + d + " d-mods removed (free, one-off)";
     }
 
+    /**
+     * 1.1.21 (player, Nov 3 21:53): a one-off exception to the no-cheats rule - "cheat in 20 story points".
+     * Grants exactly BONUS_SP once per save (remembered in persistent data), whatever allow_cheats says.
+     */
+    public static final int BONUS_SP = 20;
+    static final String BONUS_SP_KEY = "claude_captain_bonus_sp_used";
+
+    static String bonusStoryPoints() {
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> pd = Global.getSector().getPersistentData();
+        if (Boolean.TRUE.equals(pd.get(BONUS_SP_KEY))) return "the one-off " + BONUS_SP + " story points were already granted in this save";
+        com.fs.starfarer.api.characters.MutableCharacterStatsAPI st = Global.getSector().getPlayerStats();
+        st.addStoryPoints(BONUS_SP);
+        pd.put(BONUS_SP_KEY, Boolean.TRUE);
+        try { EventLog.alert("cheat", "bonussp: +" + BONUS_SP + " story points (player's one-off exception, Nov 3); now " + st.getStoryPoints()); } catch (Throwable ignored) {}
+        return "+" + BONUS_SP + " story points (one-off); now " + st.getStoryPoints();
+    }
+
     static String restore(String q) {
         String[] err = new String[1];
         CoreUITradeMode[] mode = new CoreUITradeMode[1];
