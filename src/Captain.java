@@ -603,7 +603,8 @@ public class Captain implements EveryFrameScript {
         if (c.equals("bounty")) return BountyRunner.result(a);
         if (c.equals("preflight")) return Preflight.report(a);
         if (c.equals("progress")) return Progress.report();
-        if (c.equals("colony") && a.trim().toLowerCase(Locale.ROOT).startsWith("sites")) return ColonySites.report(a.trim().substring(5));
+        if (c.equals("survey") && a.trim().toLowerCase(Locale.ROOT).startsWith("targets")) return SurveyTargets.command(a.trim().substring(7));
+        if (c.equals("colony") && a.trim().toLowerCase(Locale.ROOT).startsWith("sites"))return ColonySites.report(a.trim().substring(5));
         if (c.equals("colony") && a.trim().toLowerCase(Locale.ROOT).startsWith("build")) return ColonyBuild.command(a.trim().substring(5));
         if (c.equals("buyship")) return Shipyard.buyShip(a);
         if (c.equals("buyspec")) return Shipyard.buySpec(a);

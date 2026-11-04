@@ -51,6 +51,7 @@ BountyGuard now only raises an alert when a bounty the fleet killed ends unpaid.
 - `preflight <bounty|market>`: read-only GO/NO-GO.
 - `progress`: story missions, skill points, colonies, automated ships without AI cores.
 - `colony sites`: ranks surveyed uninhabited planets.
+- `survey targets [max ly] [n]`: systems with planets still to survey, nearest first, live Remnant systems last.
 - `flagship <ship>`.
 - `dialog close`.
 

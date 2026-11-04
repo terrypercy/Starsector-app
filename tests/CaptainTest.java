@@ -20,6 +20,7 @@ public class CaptainTest {
         storm();
         travel();
         guard();
+        surveyTargets();
         System.out.println("CaptainTest: " + passes + " passed, " + fails + " failed");
         if (fails > 0) System.exit(1);
     }
@@ -694,5 +695,23 @@ public class CaptainTest {
         check(BatchMath.gate(go, 100, 100, -1) == null, "gate: all read -> ok");
         check(BatchMath.gate(Arrays.asList("pause", "halt", "hunt stop", "cancel", "optional loop stop"), -1, 100, 50) == null, "gate: stop-only batches always pass");
         check(BatchMath.gate(Arrays.asList("pause", "go Hesperus"), -1, 100, -1) != null, "gate: a stop plus a real command still needs #since");
+    }
+
+    // ------------------------------------------------------------------ survey targets (1.1.26)
+
+    static void surveyTargets() {
+        SurveyMath.Sys near = new SurveyMath.Sys("Near", 4f, 2, 0);
+        SurveyMath.Sys far = new SurveyMath.Sys("Far", 12f, 5, 1);
+        SurveyMath.Sys done = new SurveyMath.Sys("Done", 2f, 0, 3);
+        SurveyMath.Sys remnant = new SurveyMath.Sys("Remnant", 3f, 4, 2);
+        remnant.danger = true;
+        SurveyMath.Sys tooFar = new SurveyMath.Sys("TooFar", 40f, 6, 0);
+        List<SurveyMath.Sys> r = SurveyMath.rank(Arrays.asList(far, done, remnant, near, tooFar), 30f);
+        check(r.size() == 3, "survey targets: fully surveyed and out-of-range systems are dropped");
+        check(r.get(0) == near && r.get(1) == far, "survey targets: safe systems nearest first");
+        check(r.get(2) == remnant, "survey targets: a live Remnant system goes last even when nearest");
+        check(SurveyMath.dangerTag("theme_remnant_resurgent") && !SurveyMath.dangerTag("theme_remnant_destroyed") && !SurveyMath.dangerTag("theme_derelict"),
+                "survey targets: only live Remnant themes are dangerous");
+        check(SurveyMath.line(1, remnant).contains("DANGER") && SurveyMath.line(1, far).contains("1 salvage"), "survey targets: line shows danger and salvage");
     }
 }
