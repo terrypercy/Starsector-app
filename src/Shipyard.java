@@ -872,8 +872,24 @@ public final class Shipyard {
     }
 
     /** "store <ship|combat>": moves ships into this market's storage (needs paid storage access). Never the flagship. */
-    static String store(String q) {
+    /**
+     * 1.1.23 (Nov 3 live): the docked market for storage, own colonies included. GameReader.dockedMarket() skips
+     * player-owned markets (no trade there), so 'store' at Crom Cruach said "not docked".
+     */
+    static MarketAPI storageMarket() {
         MarketAPI m = GameReader.dockedMarket();
+        if (m != null) return m;
+        try {
+            com.fs.starfarer.api.campaign.InteractionDialogAPI d = Global.getSector().getCampaignUI().getCurrentInteractionDialog();
+            if (d == null || d.getInteractionTarget() == null) return null;
+            MarketAPI own = d.getInteractionTarget().getMarket();
+            if (own != null && own.isPlayerOwned() && Misc.getStorageCargo(own) != null) return own;
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    static String store(String q) {
+        MarketAPI m = storageMarket();
         if (m == null) return "not docked at a market (dock first)";
         if (!Misc.playerHasStorageAccess(m)) return "no storage access at " + m.getName() + " (pay the one-time fee on the Storage tab)";
         CargoAPI st = Misc.getStorageCargo(m);
@@ -898,7 +914,7 @@ public final class Shipyard {
 
     /** "retrieve <ship|all>": takes ships back from this market's storage, then re-assigns idle officers. */
     static String retrieve(String q) {
-        MarketAPI m = GameReader.dockedMarket();
+        MarketAPI m = storageMarket();
         if (m == null) return "not docked at a market (dock first)";
         CargoAPI st = Misc.getStorageCargo(m);
         if (st == null || st.getMothballedShips() == null) return "nothing stored at " + m.getName();
