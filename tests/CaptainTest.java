@@ -144,6 +144,11 @@ public class CaptainTest {
         check(near(SupplyMath.fuelLy(25f, 67f, 40f, 10f), 10f), "expensive fuel: only 10 ly");
         check(near(SupplyMath.fuelLy(25f, 26f, 40f, 10f), 25f), "cheap fuel: full 25 ly");
         check(near(SupplyMath.fuelBudget(24000f, 5000f, 25f), 6000f), "fuel budget capped at 25% of credits");
+        // 1.1.19 (player rule, Nov 3): the hunt restock bought on Culann's (Tri-Tachyon) black market
+        check(SupplyMath.listed("tritachyon", "tritachyon"), "Tri-Tachyon black market banned");
+        check(SupplyMath.listed("pirates, TriTachyon", "tritachyon"), "banned list: case and spacing ignored");
+        check(!SupplyMath.listed("tritachyon", "independent"), "independent black market still allowed");
+        check(!SupplyMath.listed("", "tritachyon"), "empty list bans nothing");
         check(near(SupplyMath.fuelBudget(6000f, 5000f, 25f), 1000f), "fuel budget keeps the reserve");
     }
 

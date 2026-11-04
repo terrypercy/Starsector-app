@@ -100,6 +100,12 @@ public final class Shipyard {
                 && !Rules.b("black_market_with_transponder", true);
     }
 
+    /** 1.1.19 (player rule): no black-market trade at markets of the factions in black_market_banned_factions (default Tri-Tachyon). */
+    static boolean blackBanned(MarketAPI m) {
+        return m != null && m.getFaction() != null
+                && SupplyMath.listed(Rules.s("black_market_banned_factions", "tritachyon"), m.getFaction().getId());
+    }
+
     static String blackLockedMsg(MarketAPI m) {
         return "the transponder is on: black-market trade costs standing with " + m.getFaction().getDisplayName()
                 + " (send 'ability transponder off' first; if a patrol makes you turn it on, it stays on)";
@@ -243,6 +249,7 @@ public final class Shipyard {
             }
         }
         if (pick == null || best < 30) return "no ship matching '" + arg + "' for sale here (run 'ships')";
+        if (Submarkets.SUBMARKET_BLACK.equals(from.getSpecId()) && blackBanned(m)) return pick.getHullSpec().getHullName() + " is on the black market, and black-market trade at " + m.getFaction().getDisplayName() + " markets is off (player's rule)";
         if (blackLocked(from)) return pick.getHullSpec().getHullName() + " \"" + pick.getShipName() + "\" is on the black market and " + blackLockedMsg(m);
         if (from.getPlugin().isIllegalOnSubmarket(pick, SubmarketPlugin.TransferAction.PLAYER_BUY))
             return pick.getHullSpec().getHullName() + " can't be bought on the " + from.getNameOneLine() + ": "

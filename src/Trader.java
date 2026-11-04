@@ -76,6 +76,7 @@ public final class Trader {
     static String blocked(MarketAPI m, boolean black, CoreUITradeMode mode) {
         SubmarketAPI s = sub(m, black);
         if (s == null) return m.getName() + " has no " + (black ? "black market" : "open market");
+        if (black && Shipyard.blackBanned(m)) return "no black-market trade at " + m.getFaction().getDisplayName() + " markets (player's rule)"; // 1.1.19
         if (mode == CoreUITradeMode.NONE) return m.getName() + " won't trade with you right now";
         if (!black && mode != CoreUITradeMode.OPEN) return "the open market is closed while docked with the transponder off";
         return null;

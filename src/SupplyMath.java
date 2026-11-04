@@ -12,6 +12,18 @@ public final class SupplyMath {
 
     private SupplyMath() {}
 
+    /**
+     * 1.1.19 (player rule, Nov 3): true when factionId is in the comma/space separated list (case-insensitive).
+     * Used for black_market_banned_factions: no black-market trade at markets of these factions.
+     */
+    public static boolean listed(String list, String factionId) {
+        if (list == null || factionId == null) return false;
+        for (String s : list.split("[,\\s]+")) {
+            if (s.length() > 0 && s.equalsIgnoreCase(factionId)) return true;
+        }
+        return false;
+    }
+
     /** Supplies needed to bring one ship from cr to maxCr: one deployment's supplies per deployment's worth of CR. */
     public static float crRecovery(float cr, float maxCr, float deployCostSupplies, float deployCostCr) {
         if (maxCr <= cr || deployCostCr <= 0.0001f) return 0f;

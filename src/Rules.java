@@ -122,6 +122,7 @@ public final class Rules {
       + "pursuit_strength = 2.0        # send the fastest ready ships until their DP reach this x the enemy's fleet points\n"
       + "hunt_auto_resupply = true     # resupply/repair automatically between targets\n"
       + "battle_auto_on_load = false   # true: auto-battle is on after every game load (else send 'battle auto on')\n"
+      + "black_market_banned_factions = tritachyon # LOCKED (player's rule, Nov 3): never trade on a black market at these factions' markets\n"
       + "black_market_with_transponder = true # LOCKED (player's choice, Nov 1 late: allowed with the transponder on). 1.0.7: true lets buyship/autofit/sellship trade on a black market with the transponder on (costs standing)\n"
       + "battle_deploy =               # 1.0.7: default deploy list (auto | all | ship, ship); 'battle deploy ...' is also kept in the save\n"
       + "recover_api = false           # 'recover <ship>' through the game's recovery code (experimental, see README)\n"
@@ -160,7 +161,7 @@ public final class Rules {
     public static final java.util.Set<String> LOCKED = new java.util.HashSet<String>(java.util.Arrays.asList(
             "allow_cheats", "recover_api", "require_since", "ask_before_supplies", "keep", "max_supply_price", "max_fuel_price",
             "supply_price_factor", "fuel_price_factor", "emergency_fuel_ly", "keep_moving", "hunt_eta_factor", "hunt_battle_supply_days",
-            "emergency_price_factor", "hunt_margin", "black_market_with_transponder"));
+            "emergency_price_factor", "hunt_margin", "black_market_with_transponder", "black_market_banned_factions"));
     private static boolean testOverride = false;
     private static final java.util.Set<String> lockedNoted = new java.util.HashSet<String>();
     private static final Map<String, String> defs = new HashMap<String, String>();

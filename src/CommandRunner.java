@@ -812,6 +812,7 @@ public class CommandRunner {
         String id = cm.id;
 
         MarketAPI market = tradeMarket();
+        if (black && Shipyard.blackBanned(market)) throw new CommandException("no black-market trade at " + market.getFaction().getDisplayName() + " markets (player's rule, black_market_banned_factions)");
         SubmarketAPI sub = market.getSubmarket(black ? "black_market" : "open_market");
         if (sub == null) throw new CommandException(market.getName() + " has no " + (black ? "black market" : "open market"));
         SubmarketPlugin plugin = sub.getPlugin();

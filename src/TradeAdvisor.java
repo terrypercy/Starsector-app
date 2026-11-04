@@ -284,7 +284,7 @@ public final class TradeAdvisor {
             boolean illegalOpen = open.getPlugin().isIllegalOnSubmarket(id, SubmarketPlugin.TransferAction.PLAYER_SELL);
             // black market: no tariff, so it usually pays more (rule prefer_black_market, on by default)
             SubmarketAPI black = market.getSubmarket("black_market");
-            boolean blackOk = black != null && Rules.b("prefer_black_market", true);
+            boolean blackOk = black != null && Rules.b("prefer_black_market", true) && !Shipyard.blackBanned(market); // 1.1.19
             float openValue = illegalOpen ? 0f : market.getDemandPrice(id, qty, true) * (1f - tariff);
             float blackValue = blackOk ? market.getDemandPrice(id, qty, true) * (1f - black.getTariff()) : 0f;
             boolean useBlack = blackValue > openValue;

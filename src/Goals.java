@@ -361,6 +361,7 @@ public final class Goals {
         if (hostile && m != dockedMarket()) return false;
         for (String sub : hostile ? new String[]{"black_market"} : new String[]{"open_market", "black_market"}) {
             if (m.getSubmarket(sub) == null) continue;
+            if (sub.startsWith("black") && Shipyard.blackBanned(m)) continue; // 1.1.19
             try { if (Trader.liveStock(m, sub.startsWith("black"), id) >= 10f) return true; } catch (Throwable ignored) {}
         }
         return false;
@@ -429,7 +430,7 @@ public final class Goals {
             float crb = Rules.b("resupply_cr_budget", true) ? crBudget(pf) : 0f;
             float credits = pf.getCargo().getCredits().get();
             float pct = Rules.f("resupply_max_credit_pct", 25f);
-            boolean black = m.getSubmarket("black_market") != null && Trader.liveStock(m, true, "supplies") >= 1f;
+            boolean black = m.getSubmarket("black_market") != null && !Shipyard.blackBanned(m) && Trader.liveStock(m, true, "supplies") >= 1f;
             float unit = Trader.buyCost(m, black, "supplies", 1f);
             float room = pf.getCargo().getMaxCapacity() - pf.getCargo().getSpaceUsed() - 1f;
             float stock = Trader.liveStock(m, true, "supplies") + (mode == CoreUITradeMode.OPEN ? Trader.liveStock(m, false, "supplies") : 0f);
@@ -451,7 +452,7 @@ public final class Goals {
             float fpl = 1f;
             try { fpl = pf.getLogistics().getFuelCostPerLightYear(); } catch (Throwable ignored) {}
             // 1.0.4: fuel is price-aware and credit-capped like supplies (Athulf charged 67/unit: 13k for fuel)
-            boolean blackFuel = m.getSubmarket("black_market") != null && Trader.liveStock(m, true, "fuel") >= 1f;
+            boolean blackFuel = m.getSubmarket("black_market") != null && !Shipyard.blackBanned(m) && Trader.liveStock(m, true, "fuel") >= 1f;
             float fuelUnit = Trader.buyCost(m, blackFuel, "fuel", 1f);
             float fuelLy = SupplyMath.fuelLy(Rules.f("resupply_fuel_ly", 25f), fuelUnit,
                     Rules.f("resupply_fuel_max_price", 40f), Rules.f("resupply_fuel_min_ly", 10f));
@@ -479,6 +480,7 @@ public final class Goals {
                 if (black && m.getSubmarket("black_market") == null) continue;
             // 1.0.7: no black-market buying with the transponder on (it costs standing with the market's faction)
             if (black && Shipyard.blackLocked(m.getSubmarket("black_market"))) continue;
+                if (black && Shipyard.blackBanned(m)) continue; // 1.1.19 player rule: no black market at Tri-Tachyon markets
                 if (!black && m.getSubmarket("open_market") == null) continue;
                 float q = Math.min(left, (float) Math.floor(Trader.liveStock(m, black, id)));
                 if (q < 1f) continue;
