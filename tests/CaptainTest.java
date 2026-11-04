@@ -149,6 +149,12 @@ public class CaptainTest {
         check(SupplyMath.listed("pirates, TriTachyon", "tritachyon"), "banned list: case and spacing ignored");
         check(!SupplyMath.listed("tritachyon", "independent"), "independent black market still allowed");
         check(!SupplyMath.listed("", "tritachyon"), "empty list bans nothing");
+        // 1.1.20: Corvus, Jan 31 c216 - convoy 72 DP with patrol 64, picket 55, detachment 118 nearby, escort convoy 215 at 2443 su
+        check(near(WarMath.groupDP(72f, new float[]{64f, 55f, 118f, 215f, 100f}, new float[]{300f, 400f, 600f, 2443f, 4000f}, 2500f), 524f), "Corvus convoy counts its neighbours (not the far station)");
+        check(near(WarMath.groupDP(40f, new float[]{60f}, new float[]{5000f}, 2500f), 40f), "lone patrol is judged alone");
+        check(WarMath.warTarget("hegemony", true, "all"), "any hostile faction is a war target");
+        check(!WarMath.warTarget("independent", false, "all"), "non-hostile faction is never a war target");
+        check(!WarMath.warTarget("hegemony", true, "persean"), "war list limits targets");
         check(near(SupplyMath.fuelBudget(6000f, 5000f, 25f), 1000f), "fuel budget keeps the reserve");
     }
 

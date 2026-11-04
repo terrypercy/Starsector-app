@@ -140,7 +140,7 @@ public class BountyRunner implements EveryFrameScript {
             t.reward = b.getBountyCredits();
             t.loc = t.fleet.getContainingLocation();
             t.where = t.loc == null ? "?" : t.loc.getName();
-            t.theirDP = dpOf(t.fleet);
+            t.theirDP = groupDP(t.fleet);
             t.ly = Misc.getDistanceToPlayerLY(t.fleet);
             t.daysLeft = b.getDuration() - b.getElapsedDays();
             try { t.faction = b.getFactionForUIColors() == null ? "" : b.getFactionForUIColors().getDisplayName(); } catch (Throwable ignored) {}
@@ -153,7 +153,11 @@ public class BountyRunner implements EveryFrameScript {
             for (MarketAPI m : sector().getEconomy().getMarketsCopy()) {
                 if (m.isHidden() || m.getStarSystem() == null || m.getPrimaryEntity() == null) continue;
                 String fid = m.getFaction().getId();
-                if (!"pirates".equals(fid) && !"luddic_path".equals(fid)) continue;
+                boolean pirate = "pirates".equals(fid) || "luddic_path".equals(fid);
+                // 1.1.20 (player, Nov 3): war for income - hostile factions' systems too (commission per-kill bounty + loot)
+                boolean war = !pirate && Rules.b("hunt_war", true)
+                        && WarMath.warTarget(fid, m.getFaction().isHostileTo(pf().getFaction()), Rules.s("hunt_war_factions", "all"));
+                if (!pirate && !war) continue;
                 if (!m.getFaction().isHostileTo(pf().getFaction())) continue;
                 LocationAPI loc = m.getStarSystem();
                 if (!seen.add(loc)) continue;
@@ -163,7 +167,7 @@ public class BountyRunner implements EveryFrameScript {
                 t.faction = m.getFaction().getDisplayName();
                 t.ly = Misc.getDistanceToPlayerLY(m.getPrimaryEntity());
                 t.fleet = weakestHostileIn(loc, ours / margin);
-                t.theirDP = t.fleet == null ? 0f : dpOf(t.fleet);
+                t.theirDP = t.fleet == null ? 0f : groupDP(t.fleet);
                 if (t.fleet == null) { t.ok = false; t.why = "no hostile fleet weak enough there right now (" + lastHostile + " hostile of " + lastSeen + " fleets"
                         + (lastHostile > 0 ? ", smallest " + Math.round(lastSmallest) + " DP" : "") + ")"; }
                 else judge(t, ours, margin, Rules.f("hunt_pirates_max_ly", 12f));
@@ -192,7 +196,7 @@ public class BountyRunner implements EveryFrameScript {
             }
             t.loc = t.fleet.getContainingLocation();
             t.where = t.loc == null ? "?" : t.loc.getName();
-            t.theirDP = dpOf(t.fleet);
+            t.theirDP = groupDP(t.fleet);
             t.ly = Misc.getDistanceToPlayerLY(t.fleet);
             judge(t, ours, margin, maxLy);
             out.add(t);
@@ -206,7 +210,7 @@ public class BountyRunner implements EveryFrameScript {
             try { t.faction = b.getFactionForUIColors() == null ? "" : b.getFactionForUIColors().getDisplayName(); } catch (Throwable ignored) {}
             t.ly = Misc.getDistanceToPlayerLY(b.getMarket().getPrimaryEntity());
             t.fleet = weakestHostileIn(t.loc, ours / margin);
-            t.theirDP = t.fleet == null ? 0f : dpOf(t.fleet);
+            t.theirDP = t.fleet == null ? 0f : groupDP(t.fleet);
             if (t.fleet == null) { t.ok = false; t.why = "no hostile fleet weak enough in " + t.where + " right now"; }
             else judge(t, ours, margin, maxLy);
             out.add(t);
@@ -266,20 +270,50 @@ public class BountyRunner implements EveryFrameScript {
         float bestDP = Float.MAX_VALUE;
         lastSeen = 0; lastHostile = 0; lastSmallest = 0f;
         if (loc == null) return null;
+        java.util.List<CampaignFleetAPI> hostiles = new java.util.ArrayList<CampaignFleetAPI>();
         for (CampaignFleetAPI f : loc.getFleets()) {
             if (f == pf()) continue;
             lastSeen++;
-            if (!f.isAlive() || f.isStationMode()) continue;
+            if (!f.isAlive()) continue;
             // 1.0.8: hostility by faction (isHostileTo(fleet) can be false for fleets not near the player)
             if (!f.getFaction().isHostileTo(pf().getFaction()) && !f.isHostileTo(pf())) continue;
-            float dp = dpOf(f);
-            if (dp <= 0f) continue;
+            if (dpOf(f) <= 0f) continue;
+            hostiles.add(f);
+        }
+        for (CampaignFleetAPI f : hostiles) {
+            if (f.isStationMode()) continue;
             lastHostile++;
+            // 1.1.20: judge by everything that would join (Corvus: a 72 DP target brought 26 ships)
+            float dp = groupDP(f, hostiles);
             if (lastSmallest == 0f || dp < lastSmallest) lastSmallest = dp;
             if (dp > maxDP) continue;
             if (dp < bestDP) { bestDP = dp; best = f; }
         }
         return best;
+    }
+
+    /** 1.1.20: DP of a fleet plus every hostile fleet or station within hunt_group_radius of it. */
+    static float groupDP(CampaignFleetAPI target, java.util.List<CampaignFleetAPI> hostiles) {
+        if (target == null) return 0f;
+        float[] dp = new float[hostiles.size()], dist = new float[hostiles.size()];
+        int n = 0;
+        for (CampaignFleetAPI o : hostiles) {
+            if (o == target) continue;
+            dp[n] = dpOf(o); dist[n] = Misc.getDistance(o, target); n++;
+        }
+        return WarMath.groupDP(dpOf(target), java.util.Arrays.copyOf(dp, n), java.util.Arrays.copyOf(dist, n), Rules.f("hunt_group_radius", 2500f));
+    }
+
+    /** 1.1.20: group DP around a fleet, looking up the hostiles in its location. */
+    static float groupDP(CampaignFleetAPI target) {
+        if (target == null || target.getContainingLocation() == null) return dpOf(target);
+        java.util.List<CampaignFleetAPI> hostiles = new java.util.ArrayList<CampaignFleetAPI>();
+        for (CampaignFleetAPI f : target.getContainingLocation().getFleets()) {
+            if (f == pf() || !f.isAlive()) continue;
+            if (!f.getFaction().isHostileTo(pf().getFaction()) && !f.isHostileTo(pf())) continue;
+            hostiles.add(f);
+        }
+        return groupDP(target, hostiles);
     }
 
     /** 1.0.8: "bounty <name>": what happened to a person bounty, ended ones included (result, payment, target ship). */
@@ -651,7 +685,8 @@ public class BountyRunner implements EveryFrameScript {
         float ours = ourDP();
         // 1.0.9: after the player's 'hunt <n> anyway' the margin is waived; still stop if they outgun the whole fleet
         float margin = playerOverride ? 1.0f : Rules.f("hunt_margin", 1.5f);
-        if (dpOf(target.fleet) * margin > ours) { pause("target is stronger than planned: " + Math.round(dpOf(target.fleet)) + " DP vs our " + Math.round(ours)); return; }
+        float group = groupDP(target.fleet); // 1.1.20: include everything that would join
+        if (group * margin > ours) { pause("target is stronger than planned: " + Math.round(group) + " DP with nearby allies (" + Math.round(dpOf(target.fleet)) + " alone) vs our " + Math.round(ours)); return; }
         if (sector().getClock().getElapsedDaysSince(phaseStartTs) > 90f) { pause("not reached after 90 days"); return; }
         if (sector().isPaused()) Governor.unpause();
         // exploration detour on the way (in-system legs only)
