@@ -234,8 +234,9 @@ public final class Shipyard {
         String wantId = null;
         try {
             int k = Integer.parseInt(arg.trim());
-            if (k < 1 || k > lastShips.size()) return "no ship " + k + " in the last 'ships' list (run 'ships' first)";
-            wantId = lastShips.get(k - 1);
+            String[] e = new String[1];
+            wantId = ListMath.pick(lastShips, k, e);
+            if (wantId == null) return e[0];
         } catch (NumberFormatException e) { /* a name */ }
         FleetMemberAPI pick = null;
         SubmarketAPI from = null;
@@ -273,7 +274,7 @@ public final class Shipyard {
         report(m, from, mode[0], tx);
         try { pick.updateStats(); } catch (Throwable ignored) {}
         pf().getFleetData().syncIfNeeded();
-        lastShips.remove(pick.getId());
+        ListMath.markGone(lastShips, pick.getId()); // 1.1.25: keep the other numbers where 'ships' printed them
         return "bought " + pick.getHullSpec().getHullName() + " \"" + pick.getShipName() + "\" on the " + from.getNameOneLine() + " for "
                 + n(price) + " cr (" + Math.round(from.getTariff() * 100f) + "% tariff); CR " + Math.round(pick.getRepairTracker().getCR() * 100f)
                 + "%, needs " + Math.round(pick.getMinCrew()) + " crew; credits " + n(pf().getCargo().getCredits().get());

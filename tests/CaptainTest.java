@@ -551,6 +551,13 @@ public class CaptainTest {
         check(GovMath.supplyGuard(448f, 1.7f, 1.7f, 546f, true, true, 7f, 15f) == GovMath.Guard.RESUME, "guard: resumes once docked at a market (supplies can be bought)");
         check(GovMath.guardReleases(0f), "guard: a suspended ship at 0% CR gets recovery back (accidents)");
         check(!GovMath.guardReleases(0.47f), "guard: a suspended ship at 47% CR stays suspended");
+        // 1.1.25 (Mar 23 c206 live): "buyship 9" then "buyship 10" bought entry 11 (a Lacerta, not the tanker)
+        java.util.List<String> shipsList = new java.util.ArrayList<String>(java.util.Arrays.asList("s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11"));
+        ListMath.markGone(shipsList, "s9");
+        String[] shipsErr = new String[1];
+        check("s10".equals(ListMath.pick(shipsList, 10, shipsErr)), "ships list: number 10 still means entry 10 after entry 9 was bought");
+        check(ListMath.pick(shipsList, 9, shipsErr) == null && shipsErr[0].contains("already gone"), "ships list: a bought entry answers 'already gone'");
+        check(ListMath.pick(shipsList, 12, shipsErr) == null && shipsErr[0].contains("no ship 12"), "ships list: out of range is refused");
         GovMath.Input cr = new GovMath.Input();
         cr.supplies = 1000f; cr.maintPerDay = 7f; cr.lowestCombatCR = 0.05f; cr.lowestCRShip = "Rid And Gone"; cr.minCR = 0.4f;
         GovMath.Latch lc = new GovMath.Latch();
