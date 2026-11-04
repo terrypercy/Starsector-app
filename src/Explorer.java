@@ -73,10 +73,13 @@ public final class Explorer {
                     // 1.0.8: the survey screen is a custom panel the mod can't drive yet (it left a dialog stuck with no
                     // options twice), so planets that still need surveying are skipped unless explore_survey = true
                     if (unsurveyed && !Rules.b("explore_survey", false)) continue;
+                    String type = safeType((PlanetAPI) e);
+                    // 1.1.26: the planet type is visible before a survey; skip types the player won't settle
+                    if (unsurveyed && !ruins && ExploreMath.surveySkipped(type, Rules.s("explore_survey_skip_types", ""))) continue;
                     s = new ExploreMath.Site(e.getId(), e.getName(), ruins ? "ruins" : "planet_unsurveyed", e.getLocation().x, e.getLocation().y);
                     s.survey = unsurveyed;
                     s.ruins = ruins;
-                    s.cost = unsurveyed ? "survey: supplies, heavy machinery, crew by planet class " + safeClass((PlanetAPI) e) : "";
+                    s.cost = (type.length() > 0 ? type + "; " : "") + (unsurveyed ? "survey: supplies, heavy machinery, crew by planet class " + safeClass((PlanetAPI) e) : "");
                     if (ruins) s.cost += (s.cost.length() > 0 ? "; " : "") + "ruins (" + ruinsLevel(m) + "): need a colony to explore";
                 }
                 if (s == null) continue;
@@ -94,6 +97,8 @@ public final class Explorer {
         }
         return out;
     }
+
+    static String safeType(PlanetAPI p) { try { String t = p.getTypeNameWithWorld(); return t == null ? "" : t; } catch (Throwable t) { return ""; } }
 
     static String safeClass(PlanetAPI p) { try { return Misc.getPlanetSurveyClass(p); } catch (Throwable t) { return "?"; } }
 

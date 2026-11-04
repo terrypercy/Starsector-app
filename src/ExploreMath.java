@@ -57,4 +57,19 @@ public final class ExploreMath {
         }
         return best;
     }
+
+    /**
+     * 1.1.26: true when a planet of this visible type is on the comma-separated skip list
+     * (explore_survey_skip_types, e.g. "gas giant, volcanic"): a survey there costs 90-150 supplies for a world
+     * no one would settle. Matching is by substring, ignoring case.
+     */
+    public static boolean surveySkipped(String typeName, String skipList) {
+        if (typeName == null || skipList == null) return false;
+        String t = typeName.toLowerCase(java.util.Locale.ROOT);
+        for (String k : skipList.split(",")) {
+            String w = k.trim().toLowerCase(java.util.Locale.ROOT);
+            if (w.length() > 0 && t.contains(w)) return true;
+        }
+        return false;
+    }
 }

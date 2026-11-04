@@ -712,6 +712,10 @@ public class CaptainTest {
         check(r.get(2) == remnant, "survey targets: a live Remnant system goes last even when nearest");
         check(SurveyMath.dangerTag("theme_remnant_resurgent") && !SurveyMath.dangerTag("theme_remnant_destroyed") && !SurveyMath.dangerTag("theme_derelict"),
                 "survey targets: only live Remnant themes are dangerous");
+        check(ExploreMath.surveySkipped("Gas Giant", "gas giant, volcanic") && ExploreMath.surveySkipped("Volcanic World", " Volcanic "),
+                "survey skip types: listed types are skipped, ignoring case and spaces");
+        check(!ExploreMath.surveySkipped("Barren World", "gas giant, volcanic") && !ExploreMath.surveySkipped("Terran World", "")
+                && !ExploreMath.surveySkipped(null, "gas giant"), "survey skip types: other types, an empty list and no type are surveyed");
         check(SurveyMath.line(1, remnant).contains("DANGER") && SurveyMath.line(1, far).contains("1 salvage"), "survey targets: line shows danger and salvage");
     }
 }

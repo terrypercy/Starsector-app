@@ -138,6 +138,7 @@ public final class Rules {
       + "explore_min_supply_days = 25  # never explore below this many days of maintenance supplies\n"
       + "explore_skip_defended = true  # skip defended sites unless our DP covers the defenders x hunt_margin\n"
       + "explore_survey = false        # survey planets on the way (the survey screen can't be driven yet)\n"
+      + "explore_survey_skip_types =    # 1.1.26: planet types never surveyed, comma list (e.g. gas giant, volcanic)\n"
       + "keep = metals:50, heavy machinery:50  # never sold below this many (a bare name keeps all of it)\n"
       + "require_since = true          # LOCKED: Claude's batches cite the last event read ('#since <n>')\n"
       + "ask_before_supplies = false   # LOCKED (player's choice, Nov 2: 'make sure fuel and supplies stay topped up' - ADR-0002): automatic restocks buy supplies, still under the price ceiling\n"
