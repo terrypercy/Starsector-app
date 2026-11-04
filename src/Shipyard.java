@@ -1192,17 +1192,22 @@ public final class Shipyard {
     /** Splits "ship words... rest words" at the longest leading ship name that matches a fleet member. */
     private static Object[] shipAndRest(String args) {
         String[] w = args.trim().split("\\s+");
-        for (int i = w.length; i >= 1; i--) {
+        // 1.1.22 (Nov 3 live): "CGR Sleep Not Forever surveying equipment" matched the whole line as the ship and left
+        // no hullmod. Now the rest keeps at least one word, and the split whose head scores best wins (ties: longer head).
+        FleetMemberAPI bestF = null;
+        int bestI = -1, bestScore = 59;
+        for (int i = w.length - 1; i >= 1; i--) {
             StringBuilder head = new StringBuilder();
             for (int j = 0; j < i; j++) head.append(j == 0 ? "" : " ").append(w[j]);
             FleetMemberAPI f = findMember(head.toString());
-            if (f != null && Math.max(score(head.toString(), f.getShipName()), score(head.toString(), f.getHullSpec().getHullName())) >= 60) {
-                StringBuilder t = new StringBuilder();
-                for (int j = i; j < w.length; j++) t.append(j == i ? "" : " ").append(w[j]);
-                return new Object[] { f, t.toString().trim() };
-            }
+            if (f == null) continue;
+            int sc = Math.max(score(head.toString(), f.getShipName()), score(head.toString(), f.getHullSpec().getHullName()));
+            if (sc > bestScore) { bestScore = sc; bestF = f; bestI = i; }
         }
-        return null;
+        if (bestF == null) return null;
+        StringBuilder t = new StringBuilder();
+        for (int j = bestI; j < w.length; j++) t.append(j == bestI ? "" : " ").append(w[j]);
+        return new Object[] { bestF, t.toString().trim() };
     }
 
     /** What the market pays for a ship: its base sell value less the submarket's tariff. */
