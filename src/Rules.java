@@ -40,6 +40,8 @@ public final class Rules {
       + "\n"
       + "# --- supplies, fuel, repairs\n"
       + "storm_guard = true            # creep slowly through storming hyperspace cells (slow fleets are never struck)\n"
+      + "asteroid_guard = true        # 1.1.18: go slow inside asteroid belts/fields - the game deals no impact damage to slow fleets\n"
+      + "asteroid_guard_lookahead_s = 1.5  # start slowing this many seconds before entering a belt\n"
       + "storm_guard_lookahead_s = 2.5 # how far ahead (seconds of travel) to look for storm cells\n"
       + "transverse_in = true          # 1.0.7: enter deep-space systems (no jump points) with Transverse Jump at the nascent gravity well\n"
       + "transverse_out = true         # 1.0.7: leave them the same way (costs fuel and a little CR)\n"
