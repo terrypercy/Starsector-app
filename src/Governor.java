@@ -231,6 +231,17 @@ public final class Governor {
         Map<String, FleetMemberAPI> byId = new HashMap<String, FleetMemberAPI>();
         for (FleetMemberAPI m : ms) byId.put(m.getId(), m);
         guardSuspended.retainAll(byId.keySet());
+        // 1.1.24: ships that dropped under GUARD_KEEP_CR while suspended recover again (0% CR means daily accidents)
+        StringBuilder rel = new StringBuilder();
+        for (java.util.Iterator<String> it = guardSuspended.iterator(); it.hasNext();) {
+            FleetMemberAPI m = byId.get(it.next());
+            if (m == null || m.isMothballed() || !GovMath.guardReleases(m.getRepairTracker().getCR())) continue;
+            m.getRepairTracker().setSuspendRepairs(false);
+            it.remove();
+            rel.append(rel.length() == 0 ? "" : ", ").append(m.getShipName());
+        }
+        if (rel.length() > 0) EventLog.info("gov", "supply guard: CR recovery resumed on " + rel + " (under "
+                + Math.round(GovMath.GUARD_KEEP_CR * 100f) + "% CR - accidents)");
         GovMath.Guard g = GovMath.supplyGuard(in.supplies, in.burnPerDay, in.maintPerDay, Goals.crBudget(pf), in.docked,
                 !guardSuspended.isEmpty(), Rules.f("gov_supply_guard_days", GovMath.BURN_WARN_DAYS), in.minSupplyDays, guardBurn);
         if (g == GovMath.Guard.SUSPEND) {

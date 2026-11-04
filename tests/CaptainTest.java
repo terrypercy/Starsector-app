@@ -546,6 +546,11 @@ public class CaptainTest {
         check(GovMath.supplyGuard(1475f, 8f, 7.6f, 1024f, true, true, 7f, 15f) == GovMath.Guard.RESUME, "guard: resumes once supplies cover recovery + 15 days (1024+114)");
         check(GovMath.supplyGuard(527f, 8f, 7.6f, 300f, false, true, 7f, 15f, 105f) == GovMath.Guard.NONE, "guard: no resume while the hold can't carry the old burn for 14 days (flip-flop, Nov 2)");
         check(GovMath.supplyGuard(1500f, 8f, 7.6f, 300f, false, true, 7f, 15f, 105f) == GovMath.Guard.RESUME, "guard: resumes with 1,500 supplies vs 105/day");
+        // 1.1.24 (Jan 25 c216 live): suspended Aug 1 c215, never resumed - 448 supplies never covered a 546 recovery
+        check(GovMath.supplyGuard(448f, 1.7f, 1.7f, 546f, false, true, 7f, 15f) == GovMath.Guard.NONE, "guard: Alpha New Guan case stays held in deep space");
+        check(GovMath.supplyGuard(448f, 1.7f, 1.7f, 546f, true, true, 7f, 15f) == GovMath.Guard.RESUME, "guard: resumes once docked at a market (supplies can be bought)");
+        check(GovMath.guardReleases(0f), "guard: a suspended ship at 0% CR gets recovery back (accidents)");
+        check(!GovMath.guardReleases(0.47f), "guard: a suspended ship at 47% CR stays suspended");
         GovMath.Input cr = new GovMath.Input();
         cr.supplies = 1000f; cr.maintPerDay = 7f; cr.lowestCombatCR = 0.05f; cr.lowestCRShip = "Rid And Gone"; cr.minCR = 0.4f;
         GovMath.Latch lc = new GovMath.Latch();

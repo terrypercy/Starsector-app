@@ -97,6 +97,9 @@ public final class GovMath {
     public static Guard supplyGuard(float supplies, float burnPerDay, float maintPerDay, float crRecoveryNeed,
                                     boolean docked, boolean anySuspendedByGuard, float warnDays, float minDays, float burnAtSuspend) {
         if (anySuspendedByGuard) {
+            // 1.1.24 (Jan 25 c216 live): docked at a market the player can buy what the recovery needs. Before this the
+            // guard held every ship suspended from Aug 1 c215 to Jan 25 c216: the hold never covered the whole recovery.
+            if (docked) return Guard.RESUME;
             if (supplies >= crRecoveryNeed + maintPerDay * minDays && supplies >= burnAtSuspend * warnDays * 2f) return Guard.RESUME;
             return Guard.NONE;
         }
@@ -107,6 +110,12 @@ public final class GovMath {
 
     /** 1.1.0: ships under this CR keep recovering even when the guard suspends the rest (0% CR means accidents). */
     public static final float GUARD_KEEP_CR = 0.15f;
+
+    /**
+     * 1.1.24 (Jan 25 c216 live): a ship the guard suspended above GUARD_KEEP_CR can fall below it later (event horizon,
+     * emergency burns) and then sits at 0% CR having an accident a day. Such a ship gets its recovery back.
+     */
+    public static boolean guardReleases(float cr) { return cr < GUARD_KEEP_CR; }
 
     /** Days of supplies at the current burn below which the burn alarm fires. */
     public static final float BURN_WARN_DAYS = 7f;
