@@ -28,7 +28,8 @@ public final class DarkMath {
         if (!rule || busy) return null;
         boolean hostileNear = hostileSu >= 0f && hostileSu <= rangeSu;
         if (on && hostileNear) return "off";
-        if (!on && weTurnedOff && !hostileNear && clearDays >= restoreDays && !revealsUs) return "on";
+        // 1.1.33: not while any hostile is still in sight (Nov 5 live: back on in Magec, a convoy came straight in)
+        if (!on && weTurnedOff && hostileSu < 0f && clearDays >= restoreDays && !revealsUs) return "on";
         return null;
     }
 }

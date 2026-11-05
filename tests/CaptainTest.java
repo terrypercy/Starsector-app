@@ -554,6 +554,7 @@ public class CaptainTest {
         check("on".equals(DarkMath.decide(true, false, false, -1f, 3000f, true, 2f, 1f, false)), "dark: clear 2 days -> back on");
         check(DarkMath.decide(true, false, false, -1f, 3000f, true, 2f, 1f, true) == null, "dark: stays off if turning on reveals us");
         check(DarkMath.decide(true, false, false, -1f, 3000f, false, 9f, 1f, false) == null, "dark: never turns on a transponder the player switched off");
+        check(DarkMath.decide(true, false, false, 5000f, 3000f, true, 2f, 1f, false) == null, "dark: stays off while a hostile is still in sight, even far off");
         DialogRules drs = DialogRules.parse(DialogRules.DEFAULTS);
         List<DialogRules.Opt> hail = new ArrayList<DialogRules.Opt>();
         hail.add(new DialogRules.Opt("Turn the transponder on and comply", true, false)); hail.add(new DialogRules.Opt("Attempt to disengage", true, false));
