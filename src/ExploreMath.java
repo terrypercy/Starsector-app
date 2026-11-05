@@ -16,6 +16,8 @@ public final class ExploreMath {
         public float defenderDP;
         public String cost = "";
         public boolean salvage, survey, ruins;
+        /** 1.1.38: why a survey here can't be done with what is aboard (null when it can) - such sites are never picked. */
+        public String blocked;
         public Site(String id, String name, String kind, float x, float y) { this.id = id; this.name = name; this.kind = kind; this.x = x; this.y = y; }
     }
 
@@ -47,6 +49,7 @@ public final class ExploreMath {
         float bestCost = Float.MAX_VALUE;
         for (Site s : sites) {
             if (visited.contains(s.id)) continue;
+            if (s.blocked != null) continue; // 1.1.38: can't do it with what is aboard
             if (salvage ? !s.salvage : !(survey && s.survey && !s.salvage)) continue;
             if (!"no".equals(s.defended)) {
                 if (skipDefended && !(s.defenderDP > 0f && s.defenderDP * margin <= ourDP)) continue;

@@ -40,6 +40,18 @@ public final class SurveyRun {
         return b.length() == 0 ? null : "not enough aboard: " + b;
     }
 
+    /** 1.1.38: what a survey of this planet still needs aboard (null when the fleet can do it now). */
+    public static String shortfall(PlanetAPI planet) {
+        try {
+            CampaignFleetAPI pf = Global.getSector().getPlayerFleet();
+            SurveyPlugin sp = (SurveyPlugin) Global.getSettings().getNewPluginInstance("surveyPlugin");
+            sp.init(pf, planet);
+            Map<String, Float> aboard = new HashMap<String, Float>();
+            for (String id : keys(sp.getRequired(), sp.getConsumed())) aboard.put(id, pf.getCargo().getCommodityQuantity(id));
+            return missing(sp.getRequired(), sp.getConsumed(), aboard);
+        } catch (Throwable t) { return null; }
+    }
+
     /** Surveys the planet; returns a one-line report (or why not). */
     public static String perform(PlanetAPI planet) {
         MarketAPI m = planet == null ? null : planet.getMarket();

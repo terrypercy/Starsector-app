@@ -80,6 +80,7 @@ public final class Explorer {
                     if (unsurveyed && !ruins && ExploreMath.surveySkipped(type, Rules.s("explore_survey_skip_types", ""))) continue;
                     s = new ExploreMath.Site(e.getId(), e.getName(), ruins ? "ruins" : "planet_unsurveyed", e.getLocation().x, e.getLocation().y);
                     s.survey = unsurveyed;
+                    if (unsurveyed && !ruins) s.blocked = SurveyRun.shortfall((PlanetAPI) e);
                     s.ruins = ruins;
                     s.salvage = ruins; // explored like a salvage site: "Explore the ruins" -> "Begin salvage operations"
                     s.cost = (type.length() > 0 ? type + "; " : "") + (unsurveyed ? "survey: supplies, heavy machinery, crew by planet class " + safeClass((PlanetAPI) e) : "");
@@ -138,7 +139,7 @@ public final class Explorer {
         for (ExploreMath.Site s : l) {
             b.append("\n  ").append(s.name).append(" [").append(s.kind).append("] ").append(Math.round(s.dist)).append(" su")
              .append(" | defended ").append(s.defended).append(s.defenderDP > 0 ? " (" + Math.round(s.defenderDP) + " DP)" : "")
-             .append(visited.contains(s.id) ? " | visited" : "").append(s.cost.length() > 0 ? " | " + s.cost : "");
+             .append(visited.contains(s.id) ? " | visited" : "").append(s.blocked != null ? " | skipped: " + s.blocked : "").append(s.cost.length() > 0 ? " | " + s.cost : "");
         }
         return b.toString();
     }

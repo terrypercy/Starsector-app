@@ -384,6 +384,12 @@ public class CaptainTest {
         check(ExploreMath.pick(all, 0, 0, null, null, 4000f, new HashSet<String>(Arrays.asList("a", "d")), true, 60f, 1.5f, true) == null, "defended and ruins are skipped");
         check(ExploreMath.pick(all, 0, 0, null, null, 4000f, new HashSet<String>(Arrays.asList("a", "d")), true, 200f, 1.5f, true) == def, "defended is fine when our DP covers it x margin");
         check(ExploreMath.pick(all, 0, 0, null, null, 4000f, new HashSet<String>(Arrays.asList("a")), true, 60f, 1.5f, false) == null, "explore_survey = false: no survey stops");
+        // 1.1.38 (live, Jul c206): the hunt flew 4 detours to planets it then could not survey (heavy machinery 3/10)
+        ExploreMath.Site poor = new ExploreMath.Site("f", "Short planet", "planet_unsurveyed", 200, 0); poor.survey = true;
+        poor.blocked = "not enough aboard: heavy_machinery 3/10";
+        check(ExploreMath.pick(Arrays.asList(poor), 0, 0, null, null, 4000f, none, true, 60f, 1.5f, true) == null, "a survey we can't afford is never a detour");
+        ExploreMath.Site wreckOk = new ExploreMath.Site("g", "Wreck", "derelict", 3000, 0); wreckOk.salvage = true;
+        check(ExploreMath.pick(Arrays.asList(poor, wreckOk), 0, 0, null, null, 8000f, none, true, 60f, 1.5f, true) == wreckOk, "salvage still picked beside a blocked survey");
     }
 
     // ------------------------------------------------------------------ panel rows
