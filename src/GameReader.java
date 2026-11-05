@@ -250,7 +250,8 @@ public final class GameReader {
                 SubmarketAPI open = m.getSubmarket(Submarkets.SUBMARKET_OPEN);
                 SubmarketAPI black = m.getSubmarket(Submarkets.SUBMARKET_BLACK);
                 n.hasOpen = open != null;
-                n.hasBlack = black != null;
+                // 1.1.35: a banned black market (player rule) is not planned on at all (Nov 5: the loop chose Morga, Tri-Tachyon)
+                n.hasBlack = black != null && !Shipyard.blackBanned(m);
 
                 Planner.Fleet f = sn.fleet;
                 float daysAway = m.getId().equals(f.atNode) ? 0f : Planner.travelDays(
