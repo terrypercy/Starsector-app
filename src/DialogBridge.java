@@ -73,7 +73,7 @@ public final class DialogBridge {
     }
 
     /**
-     * 1.1.29 (ADR-0004): buys a story-point option exactly as the game's own Confirm button does
+     * 1.1.30 (ADR-0004): buys a story-point option exactly as the game's own Confirm button does
      * (coreui confirm popup, 0.98a-RC8: preConfirm, spendStoryPoints with the bonus XP, confirm), so the point is
      * really spent and the XP really granted. If the option is still on the panel afterwards, it is selected
      * through the dialog plugin the way the panel would. Options with a plain confirmation popup are refused.

@@ -232,7 +232,7 @@ public final class AutoDialog {
     }
 
     /**
-     * 1.1.29 (ADR-0004): a hostile fleet at least sp_auto_escape_ratio x our strength has caught us and offers the
+     * 1.1.30 (ADR-0004): a hostile fleet at least sp_auto_escape_ratio x our strength has caught us and offers the
      * 1-story-point "special maneuvers" escape: buy it (never below sp_auto_escape_keep points) instead of pausing.
      * Nov 4 live: three IX Battlegroup intercepts near Danu (161, 161, 465 DP vs our 86) were each escaped by hand.
      */

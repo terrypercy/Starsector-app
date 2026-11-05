@@ -1,7 +1,7 @@
 package claudecaptain;
 
 /**
- * 1.1.29 (ADR-0004, player's decision Nov 4): when a hostile fleet far stronger than ours catches us, the mod may
+ * 1.1.30 (ADR-0004, player's decision Nov 4): when a hostile fleet far stronger than ours catches us, the mod may
  * spend one story point on the game's own "special maneuvers" escape instead of pausing for the player.
  * Pure decision; the game side is in {@link AutoDialog} and {@link DialogBridge#spendStoryPoint}.
  */
