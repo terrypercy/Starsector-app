@@ -27,6 +27,23 @@ public final class ColonyMath {
     }
 
     /** Sum of deposit grades; food and rarer goods count 1.5x (they pay best and make worlds habitable). */
+    /** Founding a colony consumes this (the game's SurveyPluginImpl). */
+    public static final float FOUND_CREW = 1000f, FOUND_MACHINERY = 100f, FOUND_SUPPLIES = 200f;
+
+    /**
+     * 1.1.37: null when the fleet can found a colony right now, else everything that's missing, berths first.
+     * Nov 5 live: 1,000 crew were bought onto 462 berths; the fleet crawled and ran out of supplies before reaching the site.
+     */
+    public static String readiness(float berths, float crew, float machinery, float supplies) {
+        StringBuilder b = new StringBuilder();
+        if (berths < FOUND_CREW) b.append("berths ").append(Math.round(berths)).append(": need room for ").append(Math.round(FOUND_CREW))
+                .append(" crew first (buy a crew ship - liner, Colossus or similar - BEFORE the crew)");
+        if (crew < FOUND_CREW) b.append(b.length() > 0 ? "; " : "").append("crew ").append(Math.round(crew)).append("/").append(Math.round(FOUND_CREW));
+        if (machinery < FOUND_MACHINERY) b.append(b.length() > 0 ? "; " : "").append("heavy machinery ").append(Math.round(machinery)).append("/").append(Math.round(FOUND_MACHINERY));
+        if (supplies < FOUND_SUPPLIES) b.append(b.length() > 0 ? "; " : "").append("supplies ").append(Math.round(supplies)).append("/").append(Math.round(FOUND_SUPPLIES)).append(" (plus the trip)");
+        return b.length() == 0 ? null : b.toString();
+    }
+
     public static float resourceScore(List<String> ids) {
         float s = 0f;
         if (ids == null) return 0f;

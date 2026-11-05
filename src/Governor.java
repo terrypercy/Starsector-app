@@ -339,6 +339,7 @@ public final class Governor {
         float sinceBattle = lastBattleTs == 0L ? 999f : sector().getClock().getElapsedDaysSince(lastBattleTs);
         in.lowCrExpected = Captain.lowCrExpected() || sinceBattle < 3f;
         in.ourDP = BountyRunner.ourDP();
+        try { in.crew = pf.getCargo().getCrew(); in.crewMax = pf.getCargo().getMaxPersonnel(); } catch (Throwable ignored) {}
         try { in.burnPerDay = burnPerDay(pf); } catch (Throwable ignored) {}
         in.hazard = Hazard.at(pf);
         if (in.hazard == null) hazardSinceTs = 0L;

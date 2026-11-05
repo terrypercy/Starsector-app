@@ -74,6 +74,11 @@ public final class ColonySites {
         StringBuilder b = new StringBuilder("colony sites (fully surveyed, uninhabited; best first; habitable worlds need 'farmland'/'organics')"
                 + (okOnly ? " - only sites your claim status allows" : "") + "\n");
         b.append("founding consumes 1,000 crew, 100 heavy machinery, 200 supplies (the game's SurveyPluginImpl); no hostile fleet may be tracking you; ruins must be explored first\n");
+        try {
+            com.fs.starfarer.api.campaign.CargoAPI c = com.fs.starfarer.api.Global.getSector().getPlayerFleet().getCargo();
+            String miss = ColonyMath.readiness(c.getMaxPersonnel(), c.getCrew(), c.getCommodityQuantity("heavy_machinery"), c.getSupplies());
+            b.append(miss == null ? "fleet READY to found a colony now\n" : "fleet NOT ready: " + miss + "\n"); // 1.1.37
+        } catch (Throwable ignored) {}
         int i = 0;
         for (Object[] r : rows) {
             if (i++ >= max) break;

@@ -562,6 +562,20 @@ public class CaptainTest {
         check(GovMath.outruns(18f, 9f, 3f), "burn 18 vs a burn-9 flotilla: it can't catch us");
         check(!GovMath.outruns(10f, 9f, 3f), "burn 10 vs 9: too close to call, pause");
         check(!GovMath.outruns(18f, 0f, 3f), "unknown enemy burn: pause");
+        // Nov 5 live: 1,086 crew on 462 berths - the fleet crawled for 10 days and burned all 594 supplies
+        GovMath.Input oc = new GovMath.Input();
+        oc.supplies = 594f; oc.maintPerDay = 1.4f; oc.crew = 1086f; oc.crewMax = 462f;
+        boolean ocAlarm = false;
+        for (GovMath.Alarm al : GovMath.check(oc)) if (al.key.equals("crew:over")) ocAlarm = true;
+        check(ocAlarm, "crew over berths raises an alarm");
+        check(!GovMath.routine("crew:over", true, 0f, 0.4f), "crew over berths always pauses, even heading to a market");
+        oc.crew = 462f; ocAlarm = false;
+        for (GovMath.Alarm al : GovMath.check(oc)) if (al.key.equals("crew:over")) ocAlarm = true;
+        check(!ocAlarm, "crew at berths: no alarm");
+        String rd = ColonyMath.readiness(462f, 290f, 102f, 396f);
+        check(rd != null && rd.contains("berths 462") && rd.contains("crew 290/1000"), "colony readiness: 462 berths can't carry 1,000 crew; names the shortfall");
+        check(ColonyMath.readiness(1200f, 1000f, 100f, 250f) == null, "colony readiness: 1,200 berths, 1,000 crew, 100 machinery, 250 supplies -> ready");
+        check(ColonyMath.readiness(1200f, 1000f, 100f, 150f).contains("supplies 150/200"), "colony readiness: supplies short");
         DialogRules drs = DialogRules.parse(DialogRules.DEFAULTS);
         List<DialogRules.Opt> hail = new ArrayList<DialogRules.Opt>();
         hail.add(new DialogRules.Opt("Turn the transponder on and comply", true, false)); hail.add(new DialogRules.Opt("Attempt to disengage", true, false));

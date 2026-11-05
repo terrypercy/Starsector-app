@@ -37,6 +37,8 @@ public final class GovMath {
         public float threatDP;
         public String threatName = "";
         public boolean threatClosing;
+        /** 1.1.37: crew aboard and berths (max personnel). Over berths the fleet crawls and burns supplies fast. */
+        public float crew, crewMax;
         /** 1.1.36: our fleet burns clearly faster than the closing threat (it can't catch us). */
         public boolean threatOutrun;
         // incidents since the last check
@@ -145,6 +147,10 @@ public final class GovMath {
             out.add(new Alarm("cr", in.lowestCRShip + " is at " + Math.round(in.lowestCombatCR * 100f) + "% CR (minimum " + Math.round(in.minCR * 100f) + "%)"));
         if (in.threatDP > 0f && in.threatClosing && in.threatDP > in.ourDP * in.threatRatio)
             out.add(new Alarm("threat:" + in.threatName, in.threatName + " (" + Math.round(in.threatDP) + " DP vs our " + Math.round(in.ourDP) + ") is closing in"));
+        // 1.1.37: Nov 5 live - 1,086 crew on 462 berths: the fleet crawled for 10 days and burned all 594 supplies
+        if (in.crewMax > 0f && in.crew > in.crewMax)
+            out.add(new Alarm("crew:over", Math.round(in.crew) + " crew aboard but berths for " + Math.round(in.crewMax)
+                    + ": the fleet crawls and burns supplies many times faster - sell or offload crew, or buy a crew ship"));
         if (in.shipsLostOutsideBattle > 0)
             out.add(new Alarm("incident:lost", in.shipsLostOutsideBattle + " ship(s) left the fleet outside battle"));
         if (in.worstHullDropOutsideBattle >= 0.02f)
