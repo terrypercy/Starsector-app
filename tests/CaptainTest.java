@@ -555,6 +555,10 @@ public class CaptainTest {
         check(DarkMath.decide(true, false, false, -1f, 3000f, true, 2f, 1f, true) == null, "dark: stays off if turning on reveals us");
         check(DarkMath.decide(true, false, false, -1f, 3000f, false, 9f, 1f, false) == null, "dark: never turns on a transponder the player switched off");
         check(DarkMath.decide(true, false, false, 5000f, 3000f, true, 2f, 1f, false) == null, "dark: stays off while a hostile is still in sight, even far off");
+        check(BatchMath.keepsQueue(Arrays.asList("run until done max 40"), false), "a bare 'run' keeps the earlier batch's queue");
+        check(BatchMath.keepsQueue(Arrays.asList("resume", "run until done max 25"), false), "'resume' + 'run' keeps it too");
+        check(!BatchMath.keepsQueue(Arrays.asList("cancel", "run until done max 25"), false), "'cancel' does not");
+        check(!BatchMath.keepsQueue(Arrays.asList("goto Tia", "run until done max 25"), false), "a batch with a goal replaces the queue");
         DialogRules drs = DialogRules.parse(DialogRules.DEFAULTS);
         List<DialogRules.Opt> hail = new ArrayList<DialogRules.Opt>();
         hail.add(new DialogRules.Opt("Turn the transponder on and comply", true, false)); hail.add(new DialogRules.Opt("Attempt to disengage", true, false));

@@ -18,6 +18,21 @@ public final class BatchMath {
 
     public static final String GOV = "gov", NOW = "now", GOAL = "goal", INSTANT = "instant";
 
+    /**
+     * 1.1.33: a batch of only governor lines and resume/cancel ('run until done', 'resume') acknowledges an alarm;
+     * it must not throw away the queue of the batch before it. Nov 5 live: twice a 'run' after a threat pause dropped
+     * 'buy supplies 160', 'goto Penelope's Star' and 'explore'.
+     */
+    public static boolean keepsQueue(List<String> lines, boolean dockedNow) {
+        if (lines == null || lines.isEmpty()) return false;
+        for (String l : lines) {
+            String k = kind(l, dockedNow);
+            if (!GOV.equals(k) && !NOW.equals(k)) return false;
+            if (l.trim().toLowerCase(Locale.ROOT).startsWith("cancel")) return false;
+        }
+        return true;
+    }
+
     /** The kind of one batch line. dockedNow: the fleet is docked at a market (a bare 'dock' is then instant). */
     public static String kind(String line, boolean dockedNow) {
         String l = line == null ? "" : line.trim();

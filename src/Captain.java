@@ -169,6 +169,14 @@ public class Captain implements EveryFrameScript {
     }
 
     private void startBatch(String id, List<String> lines, String title) {
+        boolean dockedNow = false;
+        try { dockedNow = Goals.dockedMarket() != null; } catch (Throwable ignored) {}
+        if (!queue.isEmpty() && BatchMath.keepsQueue(lines, dockedNow)) {
+            // 1.1.33: an acknowledgement ('run', 'resume') keeps the earlier batch's remaining commands
+            EventLog.add(EventCore.CMD, "batch", "batch " + id + ": " + lines + " - keeps the queue of " + batchId + ": " + queue);
+            for (String l : lines) runLine(l);
+            return;
+        }
         if (!queue.isEmpty()) EventLog.info("batch", "batch " + batchId + " replaced; not run: " + queue);
         queue.clear();
         AskPopup.cancel();
