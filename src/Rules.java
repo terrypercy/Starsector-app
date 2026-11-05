@@ -31,6 +31,8 @@ public final class Rules {
       + "gov_supply_guard = true       # suspend CR recovery when it would empty the hold within gov_supply_guard_days; resume when supplies cover it\n"
       + "gov_supply_guard_days = 7\n"
       + "gov_threat_ratio = 1.0        # pause when a visible hostile fleet stronger than this x our DP closes in\n"
+      + "gov_outrun_threats = true     # 1.1.36: no pause for a threat whose burn level is gov_outrun_burn_margin under ours\n"
+      + "gov_outrun_burn_margin = 3\n"
       + "gov_implicit_max_days = 15    # a batch that starts a goal without a 'run' line runs until done, at most this many days (0 = never implicit)\n"
       + "gov_until_max_days = 60       # cap for 'run until ...'\n"
       + "gov_unpause_days = 3          # 'unpause' grants this many days\n"

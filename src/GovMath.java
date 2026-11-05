@@ -37,6 +37,8 @@ public final class GovMath {
         public float threatDP;
         public String threatName = "";
         public boolean threatClosing;
+        /** 1.1.36: our fleet burns clearly faster than the closing threat (it can't catch us). */
+        public boolean threatOutrun;
         // incidents since the last check
         public int shipsLostOutsideBattle;
         public float worstHullDropOutsideBattle;
@@ -242,6 +244,14 @@ public final class GovMath {
      * "supplies are gone" without one), and hull scrapes outside battle smaller than pausePct (hyperspace storms).
      * Threats, low CR, ships lost and big hull losses always pause.
      */
+    /**
+     * 1.1.36: a hostile fleet that can't catch us is no reason to stop. Nov 5 live: a 31 DP trade fleet at burn 18
+     * was paused again and again by IX flotillas (burn 8-9) "closing in", each pause waiting minutes for a 'run'.
+     */
+    public static boolean outruns(float ourBurn, float theirBurn, float margin) {
+        return ourBurn > 0f && theirBurn > 0f && ourBurn >= theirBurn + margin;
+    }
+
     public static boolean routine(String key, boolean headingToMarket, float hullDrop, float pausePct) {
         if (key == null) return false;
         if (key.startsWith("supplies:") || key.equals("fuel")) return headingToMarket;

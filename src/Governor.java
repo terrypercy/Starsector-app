@@ -355,7 +355,10 @@ public final class Governor {
                 float dp = BountyRunner.dpOf(f);
                 Float before = fleetDist.get(f.getId());
                 boolean closing = before != null && dist < before - 30f && dist < 3000f;
-                if (dp > in.threatDP && closing) { in.threatDP = dp; in.threatName = f.getName(); in.threatClosing = true; }
+                if (dp > in.threatDP && closing) {
+                    in.threatDP = dp; in.threatName = f.getName(); in.threatClosing = true;
+                    try { in.threatOutrun = GovMath.outruns(pf.getFleetData().getBurnLevel(), f.getFleetData().getBurnLevel(), Rules.f("gov_outrun_burn_margin", 3f)); } catch (Throwable t) { in.threatOutrun = false; }
+                }
             }
             fleetDist.clear();
             fleetDist.putAll(seen);
@@ -388,6 +391,10 @@ public final class Governor {
             // 1.0.5: routine alarms (supplies/fuel while a goal already heads to a market, storm hull scrapes)
             // are logged, not paused on: every pause cost a round trip with nothing to decide
             // 1.1.5: the supply guard handles a high repair burn itself; the burn alarm re-fired and paused at every change of the burn
+            if (armed && a.key.startsWith("threat:") && in.threatOutrun && Rules.b("gov_outrun_threats", true)) {
+                EventLog.info("gov", a.text + " - but it can't catch us (we burn faster): not paused");
+                continue;
+            }
             if (armed && ((a.key.equals("cr") && in.docked) || (a.key.equals("supplies:burn") && Rules.b("gov_supply_guard", true)) || (!Rules.b("gov_pause_routine", false)
                     && GovMath.routine(a.key, toMarket, in.worstHullDropOutsideBattle, Rules.f("gov_incident_pause_pct", 40f) / 100f)))) {
                 EventLog.warn("gov", a.text + " (routine: not paused" + (toMarket ? ", already heading to a market" : "") + ")");

@@ -559,6 +559,9 @@ public class CaptainTest {
         check(BatchMath.keepsQueue(Arrays.asList("resume", "run until done max 25"), false), "'resume' + 'run' keeps it too");
         check(!BatchMath.keepsQueue(Arrays.asList("cancel", "run until done max 25"), false), "'cancel' does not");
         check(!BatchMath.keepsQueue(Arrays.asList("goto Tia", "run until done max 25"), false), "a batch with a goal replaces the queue");
+        check(GovMath.outruns(18f, 9f, 3f), "burn 18 vs a burn-9 flotilla: it can't catch us");
+        check(!GovMath.outruns(10f, 9f, 3f), "burn 10 vs 9: too close to call, pause");
+        check(!GovMath.outruns(18f, 0f, 3f), "unknown enemy burn: pause");
         DialogRules drs = DialogRules.parse(DialogRules.DEFAULTS);
         List<DialogRules.Opt> hail = new ArrayList<DialogRules.Opt>();
         hail.add(new DialogRules.Opt("Turn the transponder on and comply", true, false)); hail.add(new DialogRules.Opt("Attempt to disengage", true, false));
