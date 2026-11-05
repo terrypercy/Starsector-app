@@ -149,6 +149,8 @@ public final class AutoDialog {
             return null;
         }
         emptyDialog = null;
+        Act esc = spEscape(d, opts);
+        if (esc != null) return esc;
         // data-driven rules first (dialog_rules.txt); the code below is the built-in fallback
         DialogAgent.Result rr = DialogAgent.apply(d, ctx == null ? DialogAgent.ctx("travel") : ctx, tripTarget, bountyTarget);
         if (rr != null) {
@@ -227,6 +229,42 @@ public final class AutoDialog {
         }
         lastWhy = (it == null ? "a dialog" : it.getName()) + ": " + describe(opts);
         return null;
+    }
+
+    /**
+     * 1.1.29 (ADR-0004): a hostile fleet at least sp_auto_escape_ratio x our strength has caught us and offers the
+     * 1-story-point "special maneuvers" escape: buy it (never below sp_auto_escape_keep points) instead of pausing.
+     * Nov 4 live: three IX Battlegroup intercepts near Danu (161, 161, 465 DP vs our 86) were each escaped by hand.
+     */
+    static Act spEscape(InteractionDialogAPI d, List<Opt> opts) {
+        try {
+            SectorEntityToken it = d.getInteractionTarget();
+            if (!(it instanceof CampaignFleetAPI)) return null;
+            CampaignFleetAPI other = (CampaignFleetAPI) it;
+            CampaignFleetAPI pf = Global.getSector().getPlayerFleet();
+            if (!other.getFaction().isHostileTo(pf.getFaction())) return null;
+            Opt sp = null;
+            for (Opt o : opts) if (o.enabled && o.text.toLowerCase().startsWith("disengage by executing a series of special maneuvers")) sp = o;
+            if (sp == null) return null;
+            float enemy = 0f;
+            com.fs.starfarer.api.campaign.BattleAPI b = other.getBattle();
+            if (b != null && b.getOtherSideFor(pf) != null) for (CampaignFleetAPI f : b.getOtherSideFor(pf)) enemy += BountyRunner.dpOf(f);
+            if (enemy <= 0f) enemy = BountyRunner.dpOf(other);
+            float ours = BountyRunner.ourDP();
+            int have = Global.getSector().getPlayerStats().getStoryPoints();
+            int cost = DialogBridge.storyPointCost((DialogBridge.Opt) sp.item);
+            String why = SpMath.escapeBlocked(Rules.b("sp_auto_escape", false), enemy, ours, Rules.f("sp_auto_escape_ratio", 2f), have, cost,
+                    Math.round(Rules.f("sp_auto_escape_keep", 10f)));
+            if (why != null) { EventLog.info("dialog", other.getName() + ": no automatic story-point escape (" + why + ")"); return null; }
+            if (!DialogBridge.spendStoryPoint(d, (DialogBridge.Opt) sp.item)) return null;
+            String note = other.getName() + " (" + Math.round(enemy) + " DP vs our " + Math.round(ours) + ") caught us: spent 1 story point on the special-maneuvers escape ("
+                    + (have - cost) + " left)";
+            EventLog.warn("dialog", note);
+            return new Act(sp.text, note, true, false);
+        } catch (Throwable t) {
+            log.warn("Claude Captain: story-point escape failed", t);
+            return null;
+        }
     }
 
     /** The first good in the hold that this faction treats as illegal, or null. */

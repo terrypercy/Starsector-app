@@ -86,6 +86,9 @@ public final class Rules {
       + "go_dark = independent_only    # never | independent_only | auto\n"
       + "auto_dialogs = true           # answer routine dialogs on the way (see dialog_rules.txt)\n"
       + "when_attacked = disengage     # disengage | pause\n"
+      + "sp_auto_escape = true         # LOCKED (player's decision Nov 4, ADR-0004): spend 1 story point on the special-maneuvers escape when far outmatched\n"
+      + "sp_auto_escape_ratio = 2.0    # LOCKED (ADR-0004): only when the enemy side is at least this many times our DP\n"
+      + "sp_auto_escape_keep = 10      # LOCKED (ADR-0004): never spend below this many story points\n"
       + "keep_moving = false           # LOCKED: a paused trip is never unpaused by the mod (the player's pause wins)\n"
       + "fuel_reserve_ly = 10\n"
       + "supplies_days = 60\n"
@@ -166,7 +169,8 @@ public final class Rules {
     public static final java.util.Set<String> LOCKED = new java.util.HashSet<String>(java.util.Arrays.asList(
             "allow_cheats", "recover_api", "require_since", "ask_before_supplies", "keep", "max_supply_price", "max_fuel_price",
             "supply_price_factor", "fuel_price_factor", "emergency_fuel_ly", "keep_moving", "hunt_eta_factor", "hunt_battle_supply_days",
-            "emergency_price_factor", "hunt_margin", "black_market_with_transponder", "black_market_banned_factions"));
+            "emergency_price_factor", "hunt_margin", "black_market_with_transponder", "black_market_banned_factions",
+            "sp_auto_escape", "sp_auto_escape_ratio", "sp_auto_escape_keep"));
     private static boolean testOverride = false;
     private static final java.util.Set<String> lockedNoted = new java.util.HashSet<String>();
     private static final Map<String, String> defs = new HashMap<String, String>();

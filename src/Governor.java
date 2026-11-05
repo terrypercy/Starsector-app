@@ -382,7 +382,7 @@ public final class Governor {
 
         try { supplyGuard(pf, in); } catch (Throwable t) { Global.getLogger(Governor.class).warn("Claude Captain: supply guard failed", t); }
 
-        List<GovMath.Alarm> fresh = latch.update(GovMath.check(in));
+        List<GovMath.Alarm> fresh = latch.update(GovMath.check(in), sector().isPaused());
         boolean toMarket = headingToMarket();
         for (GovMath.Alarm a : fresh) {
             // 1.0.5: routine alarms (supplies/fuel while a goal already heads to a market, storm hull scrapes)

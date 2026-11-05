@@ -159,7 +159,14 @@ public final class GovMath {
         public static final int THREAT_ACK_GRACE = 120;
 
         /** Alarms that are active now and have not fired yet. Cleared alarms are forgotten. */
-        public List<Alarm> update(List<Alarm> active) {
+        public List<Alarm> update(List<Alarm> active) { return update(active, false); }
+
+        /**
+         * 1.1.29: as {@link #update(List)}, but a check made while the game is paused does not age the grace
+         * counters: the game sits paused on an alarm until Claude answers, which can take minutes, and the
+         * threat used to age out during that wait so the following 'run' acknowledged nothing.
+         */
+        public List<Alarm> update(List<Alarm> active, boolean paused) {
             Set<String> now = new HashSet<String>();
             List<Alarm> fresh = new ArrayList<Alarm>();
             for (Alarm a : active) {
@@ -175,6 +182,7 @@ public final class GovMath {
             for (java.util.Iterator<Map.Entry<String, Integer>> it = lapsed.entrySet().iterator(); it.hasNext();) {
                 Map.Entry<String, Integer> e = it.next();
                 if (now.contains(e.getKey())) continue;
+                if (paused) continue; // 1.1.29: waiting for Claude doesn't age the threat
                 e.setValue(e.getValue() + 1);
                 if (e.getValue() >= THREAT_ACK_GRACE) it.remove();
             }
@@ -186,6 +194,7 @@ public final class GovMath {
                 String k = it.next();
                 if (now.contains(k)) { quiet.remove(k); continue; }
                 if (k.startsWith("threat:") || k.equals("cr")) {
+                    if (paused) continue; // 1.1.29
                     Integer q = quiet.get(k);
                     int n = q == null ? 1 : q + 1;
                     if (n < THREAT_ACK_GRACE) { quiet.put(k, n); continue; }

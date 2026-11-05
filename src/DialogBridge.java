@@ -64,6 +64,35 @@ public final class DialogBridge {
         } catch (Throwable t) { return true; } // 1.0.9 (audit M3): if it can't be read, treat it as needing the player
     }
 
+    /** Story points the option costs (0 when it costs none or can't be read). */
+    public static int storyPointCost(Opt o) {
+        try {
+            com.fs.starfarer.api.campaign.StoryPointActionDelegate sp = ((OoOO.o) o.item).Ò00000;
+            return sp == null ? 0 : sp.getRequiredStoryPoints();
+        } catch (Throwable t) { return 0; }
+    }
+
+    /**
+     * 1.1.29 (ADR-0004): buys a story-point option exactly as the game's own Confirm button does
+     * (coreui confirm popup, 0.98a-RC8: preConfirm, spendStoryPoints with the bonus XP, confirm), so the point is
+     * really spent and the XP really granted. If the option is still on the panel afterwards, it is selected
+     * through the dialog plugin the way the panel would. Options with a plain confirmation popup are refused.
+     */
+    public static boolean spendStoryPoint(InteractionDialogAPI d, Opt o) {
+        OoOO.o it = (OoOO.o) o.item;
+        com.fs.starfarer.api.campaign.StoryPointActionDelegate sp = it.Ò00000;
+        if (sp == null || it.ø00000 != null) return false;
+        com.fs.starfarer.api.characters.MutableCharacterStatsAPI stats = com.fs.starfarer.api.Global.getSector().getPlayerStats();
+        if (stats.getStoryPoints() < sp.getRequiredStoryPoints()) return false;
+        sp.preConfirm();
+        stats.spendStoryPoints(sp.getRequiredStoryPoints(), true, sp.getTextPanel(), true, sp.getBonusXPFraction(), sp.getLogText());
+        sp.confirm();
+        boolean still = false;
+        for (Opt now : options(d)) if (now.item == o.item) still = true;
+        if (still && d.getPlugin() != null) d.getPlugin().optionSelected(o.text, o.data);
+        return true;
+    }
+
     public static void click(InteractionDialogAPI d, Opt o) {
         ((OoOO) d.getOptionPanel()).getDelegate().o00000((OoOO.o) o.item);
     }

@@ -520,6 +520,24 @@ public class CaptainTest {
         t2.threatClosing = false; lt3.update(GovMath.check(t2));
         t2.threatClosing = true;
         check(lt3.update(GovMath.check(t2)).isEmpty(), "an unacknowledged threat isn't re-announced after a flicker either");
+        // Nov 4 live case (Danu): the game sat paused on the threat alarm for minutes while Claude read the state; the
+        // lapsed threat aged out during the pause, so 'run' acknowledged nothing and the same convoy re-paused at once
+        GovMath.Latch lt4 = new GovMath.Latch();
+        GovMath.Input t4 = new GovMath.Input();
+        t4.supplies = 600f; t4.maintPerDay = 3f; t4.ourDP = 86f; t4.threatDP = 237f; t4.threatName = "Supply Convoy"; t4.threatClosing = true;
+        check(lt4.update(GovMath.check(t4), false).size() == 1, "convoy threat fires");
+        t4.threatClosing = false;
+        for (int i = 0; i < GovMath.Latch.THREAT_ACK_GRACE * 3; i++) lt4.update(GovMath.check(t4), true); // paused, waiting for Claude
+        lt4.ack();
+        t4.threatClosing = true;
+        check(lt4.update(GovMath.check(t4), false).isEmpty(), "a threat that lapsed during a long pause is still acknowledged by 'run'");
+        // Nov 4 (ADR-0004): three IX intercepts near Danu, each escaped by hand with 1 SP; the player allowed it automatically
+        check(SpMath.escapeBlocked(true, 465f, 86f, 2f, 19, 1, 10) == null, "sp escape: 465 DP vs 86, 19 SP -> escape");
+        check(SpMath.escapeBlocked(true, 161f, 86f, 2f, 19, 1, 10) != null, "sp escape: 161 vs 86 is under 2x -> Claude decides");
+        check(SpMath.escapeBlocked(true, 465f, 86f, 2f, 10, 1, 10) != null, "sp escape: never below the kept 10 SP");
+        check(SpMath.escapeBlocked(false, 465f, 86f, 2f, 19, 1, 10) != null, "sp escape: off when the rule is off");
+        check(SpMath.escapeBlocked(true, 465f, 86f, 2f, 19, 2, 10) != null, "sp escape: only 1-point escapes");
+        check(SpMath.escapeBlocked(true, 465f, 0f, 2f, 19, 1, 10) != null, "sp escape: unknown strength -> no");
         // Nov 1: the fleet rested inside a black hole's event horizon; CR to 0 and supplies 113 -> 0 in two days
         check(Hazard.drainsCR("event_horizon") && Hazard.drainsCR("corona") && Hazard.drainsCR("pulsar_beam"), "hazard: event horizon, corona, pulsar beam drain CR");
         check(!Hazard.drainsCR("nebula") && !Hazard.drainsCR("debris_field") && !Hazard.drainsCR(null), "hazard: nebula and debris don't");

@@ -106,7 +106,7 @@ Build: `C=<starsector-core> OUT=<out> bash tools/test.sh`.
   bonus XP), and the Temitope hunt resumed.
 
 ## The player's standing rules (enforced by the mod where possible)
-No cheats. Never spend story points (the player clicks them). Ask before big purchases, progression steps and
+No cheats. Never spend story points (the player clicks them), except the automatic 1-point escape from a hostile fleet 2x our strength while more than 10 points remain (ADR-0004, 1.1.29). Ask before big purchases, progression steps and
 every ship sale. Supplies are bought only on the player's in-game Yes. Keep 50 metals and 50 heavy machinery.
 Price limits follow the market. Never leave without fuel and supplies for the round trip. Save before big
 actions. Stop when told. Anything worked out by hand gets built into the mod.
