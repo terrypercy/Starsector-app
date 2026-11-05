@@ -538,6 +538,15 @@ public class CaptainTest {
         check(SpMath.escapeBlocked(false, 465f, 86f, 2f, 19, 1, 10) != null, "sp escape: off when the rule is off");
         check(SpMath.escapeBlocked(true, 465f, 86f, 2f, 19, 2, 10) != null, "sp escape: only 1-point escapes");
         check(SpMath.escapeBlocked(true, 465f, 0f, 2f, 19, 1, 10) != null, "sp escape: unknown strength -> no");
+        // Nov 4: every planet survey stopped the trip until Claude clicked "Perform Survey" by screen
+        java.util.Map<String, Integer> req = new java.util.HashMap<String, Integer>(); req.put("crew", 50); req.put("heavy_machinery", 15);
+        java.util.Map<String, Integer> con = new java.util.HashMap<String, Integer>(); con.put("supplies", 30); con.put("heavy_machinery", 10);
+        java.util.Map<String, Float> have = new java.util.HashMap<String, Float>(); have.put("crew", 900f); have.put("heavy_machinery", 52f); have.put("supplies", 300f);
+        check(SurveyRun.missing(req, con, have) == null, "survey: enough aboard");
+        have.put("heavy_machinery", 12f);
+        check(SurveyRun.missing(req, con, have) != null && SurveyRun.missing(req, con, have).contains("heavy_machinery 12/15"), "survey: machinery needed aboard counts");
+        have.put("heavy_machinery", 52f); have.put("supplies", 20f);
+        check(SurveyRun.missing(req, con, have).contains("supplies 20/30"), "survey: consumed supplies must be aboard");
         // Nov 1: the fleet rested inside a black hole's event horizon; CR to 0 and supplies 113 -> 0 in two days
         check(Hazard.drainsCR("event_horizon") && Hazard.drainsCR("corona") && Hazard.drainsCR("pulsar_beam"), "hazard: event horizon, corona, pulsar beam drain CR");
         check(!Hazard.drainsCR("nebula") && !Hazard.drainsCR("debris_field") && !Hazard.drainsCR(null), "hazard: nebula and debris don't");

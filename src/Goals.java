@@ -746,6 +746,8 @@ public final class Goals {
         final ExploreMath.Site site;
         SectorEntityToken ent;
         boolean inDialog = false;
+        boolean surveyDone = false;
+        String surveyNote = "";
         long startTs = 0L;
         public Visit(ExploreMath.Site s) {
             site = s;
@@ -763,6 +765,17 @@ public final class Goals {
                 if (d.getInteractionTarget() == ent || LootTracker.open()) {
                     inDialog = true;
                     progress = "dialog with " + site.name;
+                    // 1.1.31: survey in code (the survey screen is a panel the mod can't click), then leave
+                    if (site.survey && !surveyDone && ent instanceof com.fs.starfarer.api.campaign.PlanetAPI && d.getInteractionTarget() == ent) {
+                        surveyDone = true;
+                        String r;
+                        try { r = SurveyRun.perform((com.fs.starfarer.api.campaign.PlanetAPI) ent); }
+                        catch (Throwable t) { r = "survey failed: " + t; Global.getLogger(Goals.class).warn("Claude Captain: survey failed", t); }
+                        EventLog.info("explore", r);
+                        surveyNote = r;
+                        for (AutoDialog.Opt o : AutoDialog.options(d)) if (o.text.trim().equalsIgnoreCase("leave") && AutoDialog.click(d, o)) break;
+                        return;
+                    }
                     if (clicks > 15) { Explorer.visited.add(site.id); pause("explore dialog loop at " + site.name); return; }
                     handleDialog(d, now, ent);
                     return;
@@ -772,7 +785,7 @@ public final class Goals {
             }
             if (inDialog) {
                 Explorer.visited.add(site.id);
-                done("explored " + site.name + " [" + site.kind + "]");
+                done("explored " + site.name + " [" + site.kind + "]" + (surveyNote.length() > 0 ? ": " + surveyNote : ""));
                 return;
             }
             // 1.0.7: a detour that isn't closing in is dropped quickly (a debris field once ate 20 days of a hunt)
