@@ -52,6 +52,7 @@ BountyGuard now only raises an alert when a bounty the fleet killed ends unpaid.
 - `progress`: story missions, skill points, colonies, automated ships without AI cores.
 - `colony sites`: ranks surveyed uninhabited planets.
 - `survey targets [max ly] [n]`: systems with planets still to survey, nearest first, live Remnant systems last.
+- `ruins [max ly] [n]`: known unexplored ruins sector-wide; `explore_only_ruins = true` makes explore visit ruins and survey worlds only.
 - `flagship <ship>`.
 - `dialog close`.
 

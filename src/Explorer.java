@@ -68,7 +68,9 @@ public final class Explorer {
                     MarketAPI m = e.getMarket();
                     if (m == null || !m.isPlanetConditionMarketOnly()) continue;
                     boolean unsurveyed = m.getSurveyLevel() != MarketAPI.SurveyLevel.FULL;
-                    boolean ruins = isRuins(m);
+                    // 1.1.28: only ruins the player knows about (a full survey shows them) and has not explored yet;
+                    // before 1.1.28 hidden ruins on unsurveyed worlds were reported and explored ones kept showing
+                    boolean ruins = !unsurveyed && knownUnexploredRuins(m);
                     if (!unsurveyed && !ruins) continue;
                     // 1.0.8: the survey screen is a custom panel the mod can't drive yet (it left a dialog stuck with no
                     // options twice), so planets that still need surveying are skipped unless explore_survey = true
@@ -79,8 +81,9 @@ public final class Explorer {
                     s = new ExploreMath.Site(e.getId(), e.getName(), ruins ? "ruins" : "planet_unsurveyed", e.getLocation().x, e.getLocation().y);
                     s.survey = unsurveyed;
                     s.ruins = ruins;
+                    s.salvage = ruins; // explored like a salvage site: "Explore the ruins" -> "Begin salvage operations"
                     s.cost = (type.length() > 0 ? type + "; " : "") + (unsurveyed ? "survey: supplies, heavy machinery, crew by planet class " + safeClass((PlanetAPI) e) : "");
-                    if (ruins) s.cost += (s.cost.length() > 0 ? "; " : "") + "ruins (" + ruinsLevel(m) + "): need a colony to explore";
+                    if (ruins) s.cost += "ruins (" + ruinsLevel(m) + "): explore for salvage (crew, heavy machinery)";
                 }
                 if (s == null) continue;
                 // 1.0.9: never detour into terrain that drains CR (Nov 1: wrecks inside a black hole's event horizon)
@@ -96,6 +99,11 @@ public final class Explorer {
             } catch (Throwable ignored) {}
         }
         return out;
+    }
+
+    /** 1.1.28: fully surveyed (so the player has seen them) ruins that are still unexplored. */
+    static boolean knownUnexploredRuins(MarketAPI m) {
+        try { return m.getSurveyLevel() == MarketAPI.SurveyLevel.FULL && isRuins(m) && Misc.hasUnexploredRuins(m); } catch (Throwable t) { return false; }
     }
 
     static String safeType(PlanetAPI p) { try { String t = p.getTypeNameWithWorld(); return t == null ? "" : t; } catch (Throwable t) { return ""; } }
@@ -116,7 +124,9 @@ public final class Explorer {
         if (dest != null && dest.getContainingLocation() == pf.getContainingLocation()) { tx = dest.getLocation().x; ty = dest.getLocation().y; }
         Set<String> v = new HashSet<String>(visited);
         if (extraVisited != null) v.addAll(extraVisited);
-        return ExploreMath.pick(scan(pf.getContainingLocation()), pf.getLocation().x, pf.getLocation().y, tx, ty,
+        List<ExploreMath.Site> sites = scan(pf.getContainingLocation());
+        if (Rules.b("explore_only_ruins", false)) sites = ExploreMath.ruinsFocus(sites);
+        return ExploreMath.pick(sites, pf.getLocation().x, pf.getLocation().y, tx, ty,
                 Rules.f("explore_detour_su", 4000f), v, Rules.b("explore_skip_defended", true), BountyRunner.ourDP(),
                 Rules.f("hunt_margin", 1.5f), Rules.b("explore_survey", true));
     }

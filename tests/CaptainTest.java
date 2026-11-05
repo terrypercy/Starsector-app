@@ -716,6 +716,13 @@ public class CaptainTest {
                 "survey skip types: listed types are skipped, ignoring case and spaces");
         check(!ExploreMath.surveySkipped("Barren World", "gas giant, volcanic") && !ExploreMath.surveySkipped("Terran World", "")
                 && !ExploreMath.surveySkipped(null, "gas giant"), "survey skip types: other types, an empty list and no type are surveyed");
+        ExploreMath.Site ru = new ExploreMath.Site("r", "Ruin", "ruins", 0, 0); ru.ruins = true; ru.salvage = true;
+        ExploreMath.Site sv = new ExploreMath.Site("s", "Rock", "planet_unsurveyed", 0, 0); sv.survey = true;
+        ExploreMath.Site de = new ExploreMath.Site("d", "Wreck", "derelict", 0, 0); de.salvage = true;
+        List<ExploreMath.Site> rf = ExploreMath.ruinsFocus(Arrays.asList(de, ru, sv));
+        check(rf.size() == 2 && rf.contains(ru) && rf.contains(sv), "ruins focus: keeps ruins and survey sites, drops derelicts");
+        check(ExploreMath.pick(Arrays.asList(sv, ru), 0, 0, null, null, 1000f, new HashSet<String>(), false, 50f, 1.25f, true) == ru,
+                "ruins focus: known ruins are visited before surveys");
         check(SurveyMath.line(1, remnant).contains("DANGER") && SurveyMath.line(1, far).contains("1 salvage"), "survey targets: line shows danger and salvage");
     }
 }

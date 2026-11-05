@@ -72,4 +72,15 @@ public final class ExploreMath {
         }
         return false;
     }
+
+    /**
+     * 1.1.28 (player: "focus on exploring ruins"): keep known ruins, and unsurveyed planets (a survey is how
+     * ruins are found); drop derelicts, debris and other salvage.
+     */
+    public static java.util.List<Site> ruinsFocus(java.util.List<Site> in) {
+        java.util.List<Site> out = new java.util.ArrayList<Site>();
+        if (in == null) return out;
+        for (Site s : in) if (s != null && (s.ruins || (s.survey && !s.salvage))) out.add(s);
+        return out;
+    }
 }
