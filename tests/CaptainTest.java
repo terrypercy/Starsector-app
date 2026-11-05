@@ -547,6 +547,18 @@ public class CaptainTest {
         check(SurveyRun.missing(req, con, have) != null && SurveyRun.missing(req, con, have).contains("heavy_machinery 12/15"), "survey: machinery needed aboard counts");
         have.put("heavy_machinery", 52f); have.put("supplies", 20f);
         check(SurveyRun.missing(req, con, have).contains("supplies 20/30"), "survey: consumed supplies must be aboard");
+        // Nov 5: five intercepts in IX/Trinity/Apex space with the transponder on
+        check("off".equals(DarkMath.decide(true, false, true, 1500f, 3000f, false, 0f, 1f, false)), "dark: hostile at 1500 su -> transponder off");
+        check(DarkMath.decide(true, true, true, 1500f, 3000f, false, 0f, 1f, false) == null, "dark: never while docked/in a dialog/battle");
+        check(DarkMath.decide(true, false, true, -1f, 3000f, false, 0f, 1f, false) == null, "dark: no hostile -> leave it on");
+        check("on".equals(DarkMath.decide(true, false, false, -1f, 3000f, true, 2f, 1f, false)), "dark: clear 2 days -> back on");
+        check(DarkMath.decide(true, false, false, -1f, 3000f, true, 2f, 1f, true) == null, "dark: stays off if turning on reveals us");
+        check(DarkMath.decide(true, false, false, -1f, 3000f, false, 9f, 1f, false) == null, "dark: never turns on a transponder the player switched off");
+        DialogRules drs = DialogRules.parse(DialogRules.DEFAULTS);
+        List<DialogRules.Opt> hail = new ArrayList<DialogRules.Opt>();
+        hail.add(new DialogRules.Opt("Turn the transponder on and comply", true, false)); hail.add(new DialogRules.Opt("Attempt to disengage", true, false));
+        String hsig = "type=fleet target=Contingent faction=ix_battlegroup hostile=yes useful=no scan=yes illegal=no bounty=no stronger=yes salvage=no loot=no opts=[Turn the transponder on and comply|Attempt to disengage] text=";
+        check("Attempt to disengage".equals(chosen(drs, Arrays.asList("travel"), hsig, hail)), "hostile scan demand: don't turn the transponder on");
         // Nov 1: the fleet rested inside a black hole's event horizon; CR to 0 and supplies 113 -> 0 in two days
         check(Hazard.drainsCR("event_horizon") && Hazard.drainsCR("corona") && Hazard.drainsCR("pulsar_beam"), "hazard: event horizon, corona, pulsar beam drain CR");
         check(!Hazard.drainsCR("nebula") && !Hazard.drainsCR("debris_field") && !Hazard.drainsCR(null), "hazard: nebula and debris don't");

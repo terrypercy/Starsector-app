@@ -194,6 +194,7 @@ public final class AutoDialog {
             CampaignFleetAPI other = (CampaignFleetAPI) it;
             Opt scan = find(opts, "allow the scan");
             if (scan == null) scan = find(opts, "turn the transponder on and comply");
+            if (scan != null && scan.text.toLowerCase().contains("transponder") && other.isHostileTo(pf)) scan = null; // 1.1.32
             if (scan != null) {
                 String bad = illegalAboard(other.getFaction());
                 if (bad != null) { lastWhy = other.getName() + " wants a cargo scan and " + bad + " is illegal for " + other.getFaction().getDisplayName(); return null; }

@@ -39,6 +39,8 @@ public final class DialogRules {
       + "* : match type=jump .*useful=no -> choose ^Leave\n"
       + "\n"
       + "# --- patrols: comply with a scan when nothing aboard is illegal for them\n"
+      + "# 1.1.32: never switch the transponder on for a HOSTILE fleet's scan demand (Nov 4: complying told an IX contingent who we were, it attacked)\n"
+      + "* : match hostile=yes .*scan=yes -> choose ^(Refuse|Ignore|Attempt to disengage|Cut the comm link|Leave)\n"
       + "* : match scan=yes .*illegal=no -> choose ^(Allow the scan|Turn the transponder on and comply|Comply)\n"
       + "* : match scan=yes .*illegal=yes -> pause contraband aboard and a patrol wants to scan\n"
       + "\n"
