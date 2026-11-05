@@ -27,7 +27,8 @@ public final class DarkGuard {
         if (Global.getSector() == null || Global.getSector().isPaused()) return;
         CampaignFleetAPI pf = Global.getSector().getPlayerFleet();
         if (pf == null) return;
-        boolean busy = pf.getBattle() != null || Global.getSector().getCampaignUI().getCurrentInteractionDialog() != null;
+        boolean busy = pf.getBattle() != null || Global.getSector().getCampaignUI().getCurrentInteractionDialog() != null
+                || AskPopup.active() || nearFriendlyMarket(pf);
         float nearest = -1f;
         for (CampaignFleetAPI f : pf.getContainingLocation().getFleets()) {
             if (f == pf || f.isStationMode() || !f.isHostileTo(pf)) continue;
@@ -56,6 +57,20 @@ public final class DarkGuard {
             weTurnedOff = false;
             EventLog.info("dark", "no hostiles near for " + Math.round(clear) + " day(s): transponder back ON");
         }
+    }
+
+    /**
+     * 1.1.33: at a market we can trade with, the transponder is left alone. Nov 5 live (Nova Maxios): it went dark
+     * between docking and the purchase popup, and the open market refused to sell supplies with it off.
+     */
+    static boolean nearFriendlyMarket(CampaignFleetAPI pf) {
+        try {
+            for (com.fs.starfarer.api.campaign.econ.MarketAPI m : Global.getSector().getEconomy().getMarkets(pf.getContainingLocation())) {
+                if (m.getPrimaryEntity() == null || m.getFaction().isHostileTo(pf.getFaction())) continue;
+                if (Misc.getDistance(pf, m.getPrimaryEntity()) < Rules.f("dark_market_su", 600f) + m.getPrimaryEntity().getRadius()) return true;
+            }
+        } catch (Throwable ignored) {}
+        return false;
     }
 
     /** The player or a command switched it: stop managing it until we switch it off again. */
