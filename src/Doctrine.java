@@ -34,12 +34,20 @@ public final class Doctrine {
      * or wave 1 is losing (its strength, DP weighted by hull, is under wave1LosingBelow of what it started with),
      * or - only as a late fallback - after afterS seconds. Right away when the map has no objectives.
      */
-    public static boolean wave2Due(int heldObjectives, int objectives, float elapsedS, float afterS, float wave1Strength, float wave1LosingBelow) {
+    public static boolean wave2Due(int heldObjectives, int objectives, float elapsedS, float afterS, float wave1Strength, float wave1LosingBelow, boolean wave1Covers) {
+        // 1.1.38 (Gula Norris, Aug c206): wave 1 already outweighs the enemy x margin and is holding - keep the rest back
+        if (wave1Covers && wave1Strength >= wave1LosingBelow) return false;
         if (objectives == 0) return true;
         if (heldObjectives * 2 >= objectives) return true;
         if (wave1Strength < wave1LosingBelow) return true;
         return elapsedS >= afterS;
     }
+
+    /**
+     * 1.1.38 (Gula Norris, Aug c206): a ship joins battles only if it is not a civilian hull and has at least one
+     * weapon or fighter wing fitted. A combat hull bought bare (the Colossus Mk.III, OP 0/55) fought and was lost.
+     */
+    public static boolean fightable(boolean civilian, int weapons, int wings) { return !civilian && (weapons > 0 || wings > 0); }
 
     /** 1.1.17: the line has formed once most of wave 2 has reached the front, or after maxS as a fallback. */
     public static boolean lineFormed(float arrivedFrac, float sinceWave2S, float arrivedNeeded, float maxS) {

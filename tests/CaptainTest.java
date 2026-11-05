@@ -651,10 +651,18 @@ public class CaptainTest {
         check(Doctrine.role("CRUISER", "eradicator_pirates", false).equals(Doctrine.SUPPORT), "doctrine: Eradicator (P) is wave-1 fire support");
         check(Doctrine.role("CAPITAL_SHIP", "onslaught_mk1", false).equals(Doctrine.CORE), "doctrine: Onslaught is the core wave");
         check(Doctrine.role("DESTROYER", "phaeton", true).equals(Doctrine.SKIP), "doctrine: civilian ships never deploy");
-        check(!Doctrine.wave2Due(0, 4, 32f, 60f, 1f, 0.75f) && !Doctrine.wave2Due(1, 4, 32f, 60f, 0.9f, 0.75f), "doctrine 1.1.17: no wave 2 at 32 s with 0-1 of 4 objectives and wave 1 healthy (the Nil Heze charge)");
-        check(Doctrine.wave2Due(2, 4, 10f, 60f, 1f, 0.75f) && Doctrine.wave2Due(2, 3, 10f, 60f, 1f, 0.75f), "doctrine 1.1.17: wave 2 once half the objectives are held");
-        check(Doctrine.wave2Due(0, 4, 10f, 60f, 0.7f, 0.75f), "doctrine 1.1.17: wave 2 early when wave 1 is losing");
-        check(Doctrine.wave2Due(0, 4, 61f, 60f, 1f, 0.75f) && Doctrine.wave2Due(0, 0, 0f, 60f, 1f, 0.75f), "doctrine 1.1.17: late fallback; no objectives = at once");
+        check(!Doctrine.wave2Due(0, 4, 32f, 60f, 1f, 0.75f, false) && !Doctrine.wave2Due(1, 4, 32f, 60f, 0.9f, 0.75f, false), "doctrine 1.1.17: no wave 2 at 32 s with 0-1 of 4 objectives and wave 1 healthy (the Nil Heze charge)");
+        check(Doctrine.wave2Due(2, 4, 10f, 60f, 1f, 0.75f, false) && Doctrine.wave2Due(2, 3, 10f, 60f, 1f, 0.75f, false), "doctrine 1.1.17: wave 2 once half the objectives are held");
+        check(Doctrine.wave2Due(0, 4, 10f, 60f, 0.7f, 0.75f, false), "doctrine 1.1.17: wave 2 early when wave 1 is losing");
+        check(Doctrine.wave2Due(0, 4, 61f, 60f, 1f, 0.75f, false) && Doctrine.wave2Due(0, 0, 0f, 60f, 1f, 0.75f, false), "doctrine 1.1.17: late fallback; no objectives = at once");
+        // 1.1.38 (live, Gula Norris, Aug c206): wave 1 had 31 DP vs 15 at full strength, yet wave 2 (a bare Colossus) dropped at 1 s
+        check(!Doctrine.wave2Due(0, 0, 1f, 60f, 1f, 0.75f, true), "doctrine 1.1.38: wave 1 already covers the enemy and is healthy - no wave 2");
+        check(!Doctrine.wave2Due(0, 4, 61f, 60f, 1f, 0.75f, true), "doctrine 1.1.38: no late fallback either while wave 1 covers the enemy");
+        check(Doctrine.wave2Due(0, 0, 30f, 60f, 0.7f, 0.75f, true), "doctrine 1.1.38: wave 2 still comes when wave 1 is losing");
+        // 1.1.38: a combat hull with nothing fitted (bought bare) is not a warship
+        check(!Doctrine.fightable(false, 0, 0), "doctrine 1.1.38: a bare combat hull (no weapons, no wings) never fights");
+        check(Doctrine.fightable(false, 3, 0) && Doctrine.fightable(false, 0, 2), "doctrine 1.1.38: weapons or fighter wings make it a warship");
+        check(!Doctrine.fightable(true, 4, 0), "doctrine 1.1.38: civilian hulls never fight");
         check(!Doctrine.lineFormed(0.5f, 20f, 0.75f, 60f) && Doctrine.lineFormed(0.8f, 20f, 0.75f, 60f) && Doctrine.lineFormed(0f, 61f, 0.75f, 60f), "doctrine 1.1.17: search and destroy only once wave 2 reached the front (or fallback)");
         check(Doctrine.room(0f, 50f) == Float.MAX_VALUE && Doctrine.room(150f, 104f) == 46f, "doctrine: room under the game's cap");
         check(Doctrine.shouldRetreat(0.39f, 10, 0, 0.4f, 0.75f) && !Doctrine.shouldRetreat(0.9f, 10, 2, 0.4f, 0.75f), "doctrine: retreat on low hull");

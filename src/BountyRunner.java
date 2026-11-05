@@ -99,7 +99,7 @@ public class BountyRunner implements EveryFrameScript {
     static float ourDP() {
         float dp = 0f;
         for (FleetMemberAPI m : pf().getFleetData().getMembersListCopy()) {
-            if (Shipyard.civilian(m) || m.isMothballed() || m.getRepairTracker().getCR() < 0.25f) continue;
+            if (Shipyard.noncombat(m) || m.isMothballed() || m.getRepairTracker().getCR() < 0.25f) continue;
             dp += m.getDeploymentPointsCost();
         }
         return dp;
@@ -108,7 +108,7 @@ public class BountyRunner implements EveryFrameScript {
     static float lowestCombatCR() {
         float lo = 1f;
         for (FleetMemberAPI m : pf().getFleetData().getMembersListCopy()) {
-            if (Shipyard.civilian(m) || m.isMothballed()) continue;
+            if (Shipyard.noncombat(m) || m.isMothballed()) continue;
             lo = Math.min(lo, m.getRepairTracker().getCR());
         }
         return lo;
@@ -494,7 +494,7 @@ public class BountyRunner implements EveryFrameScript {
     static float daysToRecover(float want) {
         float worst = 0f;
         for (FleetMemberAPI m : pf().getFleetData().getMembersListCopy()) {
-            if (m.isMothballed() || Shipyard.civilian(m)) continue;
+            if (m.isMothballed() || Shipyard.noncombat(m)) continue;
             try {
                 float d = TravelMath.daysToCr(m.getRepairTracker().getCR(), Math.min(want, m.getRepairTracker().getMaxCR()), m.getRepairTracker().getRecoveryRate());
                 if (d > worst) worst = d;
@@ -890,7 +890,7 @@ public class BountyRunner implements EveryFrameScript {
     static boolean hullNeedsDock() {
         float min = Rules.f("repair_hull_pct", 90f) / 100f * 0.6f; // only real damage sends a hunt to the dockyard
         for (FleetMemberAPI m : pf().getFleetData().getMembersListCopy())
-            if (!m.isMothballed() && !Shipyard.civilian(m) && m.getStatus().getHullFraction() < min) return true;
+            if (!m.isMothballed() && !Shipyard.noncombat(m) && m.getStatus().getHullFraction() < min) return true;
         return false;
     }
 

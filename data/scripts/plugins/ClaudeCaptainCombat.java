@@ -103,7 +103,10 @@ public class ClaudeCaptainCombat extends BaseEveryFrameCombatPlugin {
 
     private boolean isCivilian(FleetMemberAPI m) {
         ShipHullSpecAPI h = m.getHullSpec();
-        return h.isCivilianNonCarrier() || h.getHints().contains(ShipHullSpecAPI.ShipTypeHints.CIVILIAN);
+        boolean civ = h.isCivilianNonCarrier() || h.getHints().contains(ShipHullSpecAPI.ShipTypeHints.CIVILIAN);
+        // 1.1.38: a combat hull with no weapons and no wings fitted stays out too
+        try { return !Doctrine.fightable(civ, m.getVariant().getFittedWeaponSlots().size(), m.getVariant().getFittedWings().size()); }
+        catch (Throwable t) { return civ; }
     }
 
     /** Ships too worn to fight: they malfunction and get destroyed (low combat readiness or a wrecked hull). */
@@ -265,7 +268,12 @@ public class ClaudeCaptainCombat extends BaseEveryFrameCombatPlugin {
             int held = 0, total = 0;
             for (BattleObjectiveAPI o : engine.getObjectives()) { total++; if (o.getOwner() == 0) held++; }
             float str = wave1Strength(mine);
-            if (Doctrine.wave2Due(held, total, t, Rules.f("battle_wave2_after_s", 60f), str, Rules.f("battle_wave1_losing_below", 0.75f))) {
+            float enemyDP = 0f;
+            CombatFleetManagerAPI theirs = engine.getFleetManager(FleetSide.ENEMY);
+            for (FleetMemberAPI m : theirs.getReservesCopy()) enemyDP += m.getDeploymentPointsCost();
+            for (FleetMemberAPI m : theirs.getDeployedCopy()) enemyDP += m.getDeploymentPointsCost();
+            boolean covers = wave1StartDP > 0f && wave1StartDP >= enemyDP * BattleConfig.margin; // 1.1.38
+            if (Doctrine.wave2Due(held, total, t, Rules.f("battle_wave2_after_s", 60f), str, Rules.f("battle_wave1_losing_below", 0.75f), covers)) {
                 wave2Sent = true; wave2At = t;
                 try { EventLog.info("battle", "wave 2 trigger at " + Math.round(t) + " s: " + held + "/" + total + " objectives held, wave 1 at " + Math.round(str * 100f) + "% strength"); } catch (Throwable ignored) {}
                 wave2(mine, tm, held);

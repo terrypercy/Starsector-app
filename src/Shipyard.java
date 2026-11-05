@@ -125,6 +125,14 @@ public final class Shipyard {
         return st.getBaseValuePerUnit() * (1f + s.getTariff());
     }
 
+    /** 1.1.38: true when the ship should never fight: a civilian hull, or a combat hull with nothing fitted. */
+    static boolean noncombat(FleetMemberAPI m) {
+        try {
+            ShipVariantAPI v = m.getVariant();
+            return !Doctrine.fightable(civilian(m), v.getFittedWeaponSlots().size(), v.getFittedWings().size());
+        } catch (Throwable t) { return civilian(m); }
+    }
+
     /** Civilian by hull design (FleetMemberAPI.isCivilian() is also true for any unarmed hull, e.g. ships for sale). */
     static boolean civilian(FleetMemberAPI m) {
         try { return m.getHullSpec().getHints().contains(com.fs.starfarer.api.combat.ShipHullSpecAPI.ShipTypeHints.CIVILIAN); }
@@ -186,7 +194,7 @@ public final class Shipyard {
              .append(Math.round(m.getStatus().getHullFraction() * 100f)).append("% | OP ").append(v.computeOPCost(st))
              .append("/").append(m.getHullSpec().getOrdnancePoints(st)).append(" | weapons ").append(v.getFittedWeaponSlots().size())
              .append(" | crew ").append(Math.round(m.getMinCrew())).append("-").append(Math.round(m.getMaxCrew()))
-             .append(" | captain ").append(cap).append(civilian(m) ? " | civilian" : "").append("\n");
+             .append(" | captain ").append(cap).append(civilian(m) ? " | civilian" : noncombat(m) ? " | unarmed (stays out of battle)" : "").append("\n");
         }
         List<OfficerDataAPI> offs = pf().getFleetData().getOfficersCopy();
         b.append("officers: ").append(offs.size());

@@ -285,7 +285,7 @@ public final class Governor {
         try { return pf.getLogistics().getTotalSuppliesPerDay(); } catch (Throwable t) { return maintPerDay(pf); }
     }
 
-    static boolean combatShip(FleetMemberAPI m) { return !m.isMothballed() && !Shipyard.civilian(m) && !m.isFighterWing(); }
+    static boolean combatShip(FleetMemberAPI m) { return !m.isMothballed() && !Shipyard.noncombat(m) && !m.isFighterWing(); }
 
     /** Nearest non-hostile market with an open or black market; cached for 5 s. */
     static void nearestFriendly(CampaignFleetAPI pf) {
